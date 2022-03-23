@@ -1,0 +1,256 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/ErrorCodes.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/GridTools.h
+cmath
+-
+Common/TVarListHandler.h
+-
+Common/ErrorCodes.h
+-
+Common/Tools.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/TCostFunctionProvider.h
+cstdlib
+-
+Common/ErrorCodes.h
+-
+Common/TVarListHandler.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/THierarchicalCostFunctionProvider.h
+cstdlib
+-
+cmath
+-
+algorithm
+-
+Common/Tools.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/THierarchicalPartition.h
+cmath
+-
+cstdlib
+-
+vector
+-
+Common/GridTools.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Common/GridTools.h
+Common/TVarListHandler.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Common/TVarListHandler.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/THierarchyBuilder.h
+cstdlib
+-
+cmath
+-
+vector
+-
+Common/THierarchicalPartition.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/TVarListHandler.h
+cstdlib
+-
+vector
+-
+algorithm
+-
+Common/ErrorCodes.h
+-
+Common/Verbose.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Tools.h
+cstdlib
+-
+fstream
+-
+iterator
+-
+vector
+-
+cmath
+-
+cstring
+-
+forward_list
+-
+algorithm
+-
+Common/ErrorCodes.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Verbose.h
+cstdio
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/GridTools.cpp
+GridTools.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/GridTools.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/GridTools.h
+cmath
+-
+Common/TVarListHandler.h
+-
+Common/ErrorCodes.h
+-
+Common/Tools.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/MultiScaleTools.cpp
+MultiScaleTools.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/MultiScaleTools.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/MultiScaleTools.h
+vector
+-
+Common/ErrorCodes.h
+-
+Common/Tools.h
+-
+Common/Verbose.h
+-
+Common/GridTools.h
+-
+Common/THierarchyBuilder.h
+-
+Common/THierarchicalPartition.h
+-
+Common/THierarchicalCostFunctionProvider.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TCouplingHandler.cpp
+TCouplingHandler.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TCouplingHandler.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TCouplingHandler.h
+cstdlib
+-
+cmath
+-
+Common/TVarListHandler.h
+-
+Common/TCostFunctionProvider.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TEpsScaling.cpp
+TEpsScaling.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TEpsScaling.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TEpsScaling.h
+cstdlib
+-
+vector
+-
+cmath
+-
+cstring
+-
+Common/ErrorCodes.h
+-
+Common/Verbose.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchicalCostFunctionProvider.cpp
+THierarchicalCostFunctionProvider.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchicalCostFunctionProvider.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchicalCostFunctionProvider.h
+cstdlib
+-
+cmath
+-
+algorithm
+-
+Common/Tools.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchicalPartition.cpp
+THierarchicalPartition.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchicalPartition.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchicalPartition.h
+cmath
+-
+cstdlib
+-
+vector
+-
+Common/GridTools.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Common/GridTools.h
+Common/TVarListHandler.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Common/TVarListHandler.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchyBuilder.cpp
+THierarchyBuilder.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchyBuilder.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/THierarchyBuilder.h
+cstdlib
+-
+cmath
+-
+vector
+-
+Common/THierarchicalPartition.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TVarListHandler.cpp
+TVarListHandler.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TVarListHandler.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/TVarListHandler.h
+cstdlib
+-
+vector
+-
+algorithm
+-
+Common/ErrorCodes.h
+-
+Common/Verbose.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Tools.cpp
+Tools.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Tools.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Tools.h
+cstdlib
+-
+fstream
+-
+iterator
+-
+vector
+-
+cmath
+-
+cstring
+-
+forward_list
+-
+algorithm
+-
+Common/ErrorCodes.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Verbose.cpp
+Verbose.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Verbose.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/Common/Verbose.h
+cstdio
+-
+

@@ -1,0 +1,220 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/ErrorCodes.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/GridTools.h
+cmath
+-
+Common/TVarListHandler.h
+-
+Common/ErrorCodes.h
+-
+Common/Tools.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/TCostFunctionProvider.h
+cstdlib
+-
+Common/ErrorCodes.h
+-
+Common/TVarListHandler.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/TCouplingHandler.h
+cstdlib
+-
+cmath
+-
+Common/TVarListHandler.h
+-
+Common/TCostFunctionProvider.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/THierarchicalPartition.h
+cmath
+-
+cstdlib
+-
+vector
+-
+Common/GridTools.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Common/GridTools.h
+Common/TVarListHandler.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Common/TVarListHandler.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/THierarchyBuilder.h
+cstdlib
+-
+cmath
+-
+vector
+-
+Common/THierarchicalPartition.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/TVarListHandler.h
+cstdlib
+-
+vector
+-
+algorithm
+-
+Common/ErrorCodes.h
+-
+Common/Verbose.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Tools.h
+cstdlib
+-
+fstream
+-
+iterator
+-
+vector
+-
+cmath
+-
+cstring
+-
+forward_list
+-
+algorithm
+-
+Common/ErrorCodes.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./Common/Verbose.h
+cstdio
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./ShortCutSolver/Interfaces.h
+cstdlib
+-
+Common/TCouplingHandler.h
+-
+Common/TVarListHandler.h
+-
+Common/Tools.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./ShortCutSolver/TShieldGenerator.h
+cstdlib
+-
+cmath
+-
+Common/GridTools.h
+-
+Common/TVarListHandler.h
+-
+Common/THierarchicalPartition.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/./ShortCutSolver/TShortCutSolver.h
+cstdlib
+-
+time.h
+-
+Common/Verbose.h
+-
+Common/TVarListHandler.h
+-
+ShortCutSolver/Interfaces.h
+-
+ShortCutSolver/TShieldGenerator.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/Interfaces.cpp
+Interfaces.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/Interfaces.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/Interfaces.h
+cstdlib
+-
+Common/TCouplingHandler.h
+-
+Common/TVarListHandler.h
+-
+Common/Tools.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/MultiScaleSolver.cpp
+MultiScaleSolver.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/MultiScaleSolver.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/MultiScaleSolver.h
+Common/ErrorCodes.h
+-
+Common/Tools.h
+-
+Common/Verbose.h
+-
+Common/GridTools.h
+-
+Common/THierarchyBuilder.h
+-
+Common/THierarchicalPartition.h
+-
+Common/TCostFunctionProvider.h
+-
+ShortCutSolver/Interfaces.h
+-
+ShortCutSolver/TShieldGenerator.h
+-
+ShortCutSolver/TShortCutSolver.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShieldGenerator.cpp
+TShieldGenerator.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShieldGenerator.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShieldGenerator.h
+cstdlib
+-
+cmath
+-
+Common/GridTools.h
+-
+Common/TVarListHandler.h
+-
+Common/THierarchicalPartition.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShieldGenerator_Models.cpp
+TShieldGenerator_Models.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShieldGenerator_Models.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShieldGenerator_Models.h
+Common/ErrorCodes.h
+-
+Common/Tools.h
+-
+Common/Verbose.h
+-
+ShortCutSolver/TShieldGenerator.h
+-
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShortCutSolver.cpp
+TShortCutSolver.h
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShortCutSolver.h
+
+/content/gdrive/MyDrive/Colab Notebooks/DomDecKeOps/lib/MultiScaleOT/src/ShortCutSolver/TShortCutSolver.h
+cstdlib
+-
+time.h
+-
+Common/Verbose.h
+-
+Common/TVarListHandler.h
+-
+ShortCutSolver/Interfaces.h
+-
+ShortCutSolver/TShieldGenerator.h
+-
+

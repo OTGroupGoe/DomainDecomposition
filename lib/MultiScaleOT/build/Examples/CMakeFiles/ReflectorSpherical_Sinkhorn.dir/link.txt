@@ -1,0 +1,1 @@
+/usr/bin/c++   -fPIC -O3 -Wall -Wextra -pedantic-errors -DVERBOSE  -rdynamic CMakeFiles/ReflectorSpherical_Sinkhorn.dir/ReflectorSpherical_Sinkhorn.cpp.o  -o ReflectorSpherical_Sinkhorn ../Sinkhorn/libSinkhorn.a ../Common/libCommon.a 
