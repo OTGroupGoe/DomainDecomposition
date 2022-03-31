@@ -346,6 +346,89 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             shape=(muX.shape[0],subMuY.shape[0]))
     return (result[0],result[1],result[2],resultKernel)
 
+def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True):
+    
+    # X data to GPU
+    KeposX = torch.tensor(posX).cuda()
+    KemuX = torch.tensor(muX).cuda()
+    KerhoX = torch.tensor(rhoX).cuda()
+    dim = posX.shape[1]
+
+    # Y data: extract
+    subPosY=posY[subY].copy()
+    subRhoY=rhoY[subY].copy()
+    
+    # Why? subMuY should be already normalized!
+    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
+    
+    # Y data: to GPU
+    KesubPosY = torch.tensor(subPosY).cuda()
+    KesubRhoY = torch.tensor(subRhoY).cuda()
+    KesubMuYEff = torch.tensor(subMuYEff).cuda()
+    if SinkhornErrorRel:
+        effectiveError=SinkhornError*np.sum(muX)
+    else:
+        effectiveError=SinkhornError
+    
+    # For the squared cost, Geomloss squares the blur to get the parameter epsilon
+    # Besides, their cost reads 0.5*|x-y|^2. The following choice of blur makes problems in geomloss and
+    # in our LogSinkhorn have the same solution
+    blur = np.sqrt(eps/2)
+    KeOpsSolver = SamplesLoss(
+      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online"
+    )
+    # TODO: In the next steps there's a range of things we can try: 
+    #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
+    #    no knowledge about the duals. We, on the other hand, have a good estimate of the duals, since
+    #    we have already solved this cell problem (with slightly changed marginals)
+    #    during the previous iteration. So we should try to pass this estimate of alpha 
+    #    (given by `alphaInit`) to the KeOps solver. 
+    #  * A likely source of overhead will be the CPU-GPU communication. Note that our previous versions
+    #    of DomDec were quite heavy in communication: we were always sending data from one place to the other.
+    #    A possibility for reducing this communication overhead might be, in the multiscale regime: 
+    #    instead of doing A-B-A-B iters -> reduce epsilon -> A-B-A-B iters and so on, change to the scheme
+    #    (A iter -> reduce epsilon -> A iter -> reduce epsilon -> A iter) - (B iter with starting epsilon -> reduce epsilon ....)
+    #    An advantage of this strategy is that we will use several times the same problem data, which probably 
+    #    is better for the GPU side. Downsides: our starting estimates of alpha are not so good (but maybe they are not
+    #    so bad if we take the ones resulting from the first epsilon), and we stay closer to the unregularized problem 
+    #    (which we know can pose convergence issues. However, with such big cellsizes this might not be a problem). 
+    #    We will need to try both options to understand which performs best. 
+    #  * Orthogonal to these fundamental problems, we should try other Geomloss solvers, in particular
+    #    those solving square problems, which promise a great computational performance. This will 
+    #    involve performing the "bounding box" operation that we discussed.
+    #  * Finally, obtaining the cell transport plan may be a memory-intensive operation, specially when dealing
+    #    with very big cell-sizes (which is our objective). But we are actually only interested in the basic
+    #    cell marginals after all. It turns out that the operation of obtaining the cell marginals from the 
+    #    duals is again another kind-of-softmin operation, which KeOps can handle very well (and it already
+    #    has the data to perform it!) So we should try to do the (get cell plan -> get cell marginals) in one 
+    #    pass, instead of doing it in two steps (as currently implemented).
+    #  * Incorporate maximum error into the arguments of KeOpsSolver
+    #  * Actually use rhoX, subrhoY as reference measures, instead of muX and subMuYEff. This is actually fixed
+    #    (but only in a hacky way) in the line commented with "# Here we change the reference measure...", but
+    #    it would be nicer to already solve the problem with the correct references.
+
+    # Solve cell problem
+    alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KesubMuYEff, KesubPosY)
+    msg = 0 # TODO: stablish messages in the KeOps solver
+    # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
+    # Here we change the reference measure so that it is Ke
+    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY)
+
+    # Get transport plan
+    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
+
+    # Truncate plan
+    P[P<YThresh] = 0
+    I, J = torch.nonzero(P, as_tuple = True)
+    V = P[I,J]
+    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
+
+    # Turn alpha and beta into numpy arrays
+    alpha = alpha.cpu().numpy()
+    #print(alpha)
+    beta = beta.cpu().numpy()
+    return msg, alpha, beta, pi
+
 
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
