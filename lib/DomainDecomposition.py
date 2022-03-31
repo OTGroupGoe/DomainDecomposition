@@ -195,15 +195,15 @@ def Iterate(\
     elif SinkhornSubSolver=="SparseSinkhorn":
     	SolveOnCell=SolveOnCell_SparseSinkhorn
     elif SinkhornSubSolver == "SolveOnCellKeops":
-        test = "SolveOnCellKeOps"
+       SolveOnCell=SolveOnCellKeOps
     else:
         SolveOnCell=SinkhornSubSolver
 
     #SolveOnCell_Keops not yet implemented, so it is replaced by Log Sinkhorn dummy
         
-    if test == "SolveOnCellKeOps":
+    if SolveOnCell == SolveOnCellKeOps":
         for i in range(nCells):
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell_LogSinkhorn,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
