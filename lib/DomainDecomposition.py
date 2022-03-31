@@ -194,24 +194,42 @@ def Iterate(\
     	SolveOnCell=SolveOnCell_LogSinkhorn
     elif SinkhornSubSolver=="SparseSinkhorn":
     	SolveOnCell=SolveOnCell_SparseSinkhorn
+    elif SinkhornSubSolver == "SolveOnCellKeops":
+        SolveOnCell=SolveOnCell_KeOps
     else:
         SolveOnCell=SinkhornSubSolver
 
+    if SolveOnCell == SolveOnCell_KeOps:
+        for i in range(nCells):
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+                    muXList[i],posXList[i],alphaList[i],\
+                    [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
+                    [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
+                    partitionDataCompCellIndices[i]\
+                    )
+            alphaList[i]=resultAlpha
+            betaDataList[i]=resultBeta
+            betaIndexList[i]=muYCellIndices.copy()
+            for jsub,j in enumerate(partitionDataCompCells[i]):
+                muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
+                muYAtomicIndicesList[j]=muYCellIndices.copy()
 
-    for i in range(nCells):
-        resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_SparseY(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
-                muXList[i],posXList[i],alphaList[i],\
-                [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
-                [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                partitionDataCompCellIndices[i]\
-                )
-
-        alphaList[i]=resultAlpha
-        betaDataList[i]=resultBeta
-        betaIndexList[i]=muYCellIndices.copy()
-        for jsub,j in enumerate(partitionDataCompCells[i]):
-            muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
-            muYAtomicIndicesList[j]=muYCellIndices.copy()
+    else:
+        for i in range(nCells):
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_SparseY(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+                    muXList[i],posXList[i],alphaList[i],\
+                    [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
+                    [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
+                    partitionDataCompCellIndices[i]\
+                    )
+            alphaList[i]=resultAlpha
+            betaDataList[i]=resultBeta
+            betaIndexList[i]=muYCellIndices.copy()
+            for jsub,j in enumerate(partitionDataCompCells[i]):
+                muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
+                muYAtomicIndicesList[j]=muYCellIndices.copy()
+    
+            
 
 
 
@@ -328,6 +346,39 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             shape=(muX.shape[0],subMuY.shape[0]))
     return (result[0],result[1],result[2],resultKernel)
 
+
+def DomDecIteration_KeOps(\
+        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+        muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,matrix_size\
+        ):
+    #use the bounding_box_2D to speed up operations on GPU
+
+     # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
+    arrayAdder=LogSinkhorn.TSparseArrayAdder()
+    for x,y in zip(muYAtomicListData,muYAtomicListIndices):
+        arrayAdder.add(x,y)
+    muYCellData,muYCellIndices=arrayAdder.getDataTuple()
+
+    # another dummy return and dummy function call
+    #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
+    #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
+
+    #convert to bounding Box 
+    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYAtomicListData,muYAtomicListIndices,matrix_size)
+
+
+    # solve on cell
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellDataBox,muYCellIndicesBox,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel)
+
+
+    # extract new atomic muY
+    resultMuYAtomicDataList=[\
+            Common.GetPartialYMarginal(pi,range(*indices))
+            for indices in partitionDataCompCellIndices
+            ]
+            
+
+    return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
 def DomDecIteration_SparseY(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
@@ -927,6 +978,48 @@ def getHierarchicalKernel(MultiScaleSetupX,MultiScaleSetupY,dim,hierarchy_depth,
         newBeta=MultiScaleSetupY.getDual(hierarchy_depth)
         
         return (dat,newAlpha,newBeta)
+
+from numpy.ma.core import array
+
+
+
+def bounding_Box_2D(data,index,matrix_size):
+    #works only with square Matrix, but can be adapted to rectangular ones
+    #I asssume the indices are give in order
+
+    #step 1 find the maxima for each dimension, 2 are given by the first and last entry, 2 are searched for in the entire array
+
+    left = index[0] // matrix_size
+    right = index[len(index)-1] // matrix_size + 1
+    lower = index[0] % matrix_size
+    upper = index[0] % matrix_size
+
+    for x in index:
+        x_mod = x % matrix_size
+    if x_mod < lower:
+        lower = x_mod
+    elif x_mod > upper:
+        upper = x_mod
+
+    #step 2 assemble the new Matrix, go through the box and add values if there are some given.
+
+    box_width = right - left
+    box_hight = upper - lower + 1
+    box_index = [0] * (box_width * box_hight)
+    box_data = [0] * (box_width * box_hight + 1)
+    counter = 0
+    start = lower * matrix_size + left
+    for y in range (0, box_width):
+        for x in range (0, box_hight):
+            loc = x + y* box_hight
+            loc_index = start + x + matrix_size * y
+            box_index[loc] = [left + y, lower + x]
+        if counter < len(index) and index[counter] == loc_index:      
+            box_data[loc] = data[counter]
+            counter = counter + 1
+        else:
+            box_data[loc]=0 
+    return np.array(box_data), np.array(box_index)
         
         
         
