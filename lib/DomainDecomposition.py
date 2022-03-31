@@ -198,10 +198,10 @@ def Iterate(\
        SolveOnCell=SolveOnCellKeOps
     else:
         SolveOnCell=SinkhornSubSolver
-
-    #SolveOnCell_Keops not yet implemented, so it is replaced by Log Sinkhorn dummy
         
-    if SolveOnCell == SolveOnCellKeOps":
+ # SolveOnCell_Keops not yet implemented, so it is replaced by Log Sinkhorn dummy
+        
+    if SolveOnCell == SolveOnCellKeOps:
         for i in range(nCells):
             resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
                     muXList[i],posXList[i],alphaList[i],\
