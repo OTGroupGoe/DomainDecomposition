@@ -180,7 +180,7 @@ def GetPartitionData(atomicCells,metaCells):
 
 # serial implementation of one domdec half-iteration
 def Iterate(\
-        muY,posY,eps,size\
+        muY,posY,eps,size,\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
         muXList,posXList,alphaList,betaDataList,betaIndexList,\
@@ -200,7 +200,7 @@ def Iterate(\
         
     if SolveOnCell == SolveOnCellKeops:
         for i in range(nCells):
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,size\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,size,\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
