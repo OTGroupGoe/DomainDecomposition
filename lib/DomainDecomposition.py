@@ -184,8 +184,8 @@ def Iterate(\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
         muXList,posXList,alphaList,betaDataList,betaIndexList,\
-        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, SinkhornErrorRel=False\
-        ):
+        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, SinkhornErrorRel=False,\
+        size = 0):
 
 
     nCells=len(muXList)
@@ -205,8 +205,8 @@ def Iterate(\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i]\
-                    )
+                    partitionDataCompCellIndices[i],\
+                    size = 0)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
