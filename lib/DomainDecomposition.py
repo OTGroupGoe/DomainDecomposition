@@ -202,6 +202,7 @@ def Iterate(\
         
     if keops == 1:
         for i in range(nCells):
+            print(i)
             resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
