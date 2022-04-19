@@ -188,17 +188,18 @@ def Iterate(\
 
 
     nCells=len(muXList)
+    keops = false;
 
     if SinkhornSubSolver=="LogSinkhorn":
     	SolveOnCell=SolveOnCell_LogSinkhorn
     elif SinkhornSubSolver=="SparseSinkhorn":
         SolveOnCell=SolveOnCell_SparseSinkhorn
     elif SinkhornSubSolver == "SolveOnCellKeops":
-        SolveOnCell=SolveOnCellKeops
+        keops = true
     else:
         SolveOnCell=SinkhornSubSolver    
         
-    if SolveOnCell == SolveOnCellKeops:
+    if keops:
         for i in range(nCells):
             resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,size,\
                     muXList[i],posXList[i],alphaList[i],\
