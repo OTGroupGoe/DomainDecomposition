@@ -450,7 +450,7 @@ def DomDecIteration_KeOps(\
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
 
     #convert to bounding Box 
-    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYAtomicListData,muYAtomicListIndices,512)
+    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYAtomicListData,muYAtomicListIndices,1024)
     
     print("passed bounding Box")
 
