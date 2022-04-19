@@ -202,7 +202,7 @@ def Iterate(\
         
     if keops == 1:
         for i in range(nCells):
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,size,\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
@@ -431,7 +431,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
 
 
 def DomDecIteration_KeOps(\
-        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_size,\
+        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices\
         ):
     #use the bounding_box_2D to speed up operations on GPU
@@ -447,7 +447,7 @@ def DomDecIteration_KeOps(\
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
 
     #convert to bounding Box 
-    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYAtomicListData,muYAtomicListIndices,matrix_size)
+    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYAtomicListData,muYAtomicListIndices,512)
 
 
     # solve on cell
