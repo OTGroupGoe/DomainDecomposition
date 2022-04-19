@@ -196,6 +196,7 @@ def Iterate(\
         SolveOnCell=SolveOnCell_SparseSinkhorn
     elif SinkhornSubSolver == "SolveOnCellKeops":
         keops = 1
+        SolveOnCell = SolveOnCellKeops
     else:
         SolveOnCell=SinkhornSubSolver    
         
