@@ -180,7 +180,7 @@ def GetPartitionData(atomicCells,metaCells):
 
 # serial implementation of one domdec half-iteration
 def Iterate(\
-        muY,posY,eps,size,\
+        muY,posY,eps,\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
         muXList,posXList,alphaList,betaDataList,betaIndexList,\
