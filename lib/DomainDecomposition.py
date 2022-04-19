@@ -344,37 +344,37 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             shape=(muX.shape[0],subMuY.shape[0]))
     return (result[0],result[1],result[2],resultKernel)
 
-def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True):
+# def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True):
     
-    # X data to GPU
-    KeposX = torch.tensor(posX).cuda()
-    KemuX = torch.tensor(muX).cuda()
-    KerhoX = torch.tensor(rhoX).cuda()
-    dim = posX.shape[1]
+#    # X data to GPU
+#    KeposX = torch.tensor(posX).cuda()
+#    KemuX = torch.tensor(muX).cuda()
+#    KerhoX = torch.tensor(rhoX).cuda()
+#    dim = posX.shape[1]
 
     # Y data: extract
-    subPosY=posY[subY].copy()
-    subRhoY=rhoY[subY].copy()
+#    subPosY=posY[subY].copy()
+#    subRhoY=rhoY[subY].copy()
     
     # Why? subMuY should be already normalized!
-    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
+#    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
     
     # Y data: to GPU
-    KesubPosY = torch.tensor(subPosY).cuda()
-    KesubRhoY = torch.tensor(subRhoY).cuda()
-    KesubMuYEff = torch.tensor(subMuYEff).cuda()
-    if SinkhornErrorRel:
-        effectiveError=SinkhornError*np.sum(muX)
-    else:
-        effectiveError=SinkhornError
+#    KesubPosY = torch.tensor(subPosY).cuda()
+#    KesubRhoY = torch.tensor(subRhoY).cuda()
+#    KesubMuYEff = torch.tensor(subMuYEff).cuda()
+#    if SinkhornErrorRel:
+#        effectiveError=SinkhornError*np.sum(muX)
+#    else:
+#        effectiveError=SinkhornError
     
     # For the squared cost, Geomloss squares the blur to get the parameter epsilon
     # Besides, their cost reads 0.5*|x-y|^2. The following choice of blur makes problems in geomloss and
     # in our LogSinkhorn have the same solution
-    blur = np.sqrt(eps/2)
-    KeOpsSolver = SamplesLoss(
-      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online"
-    )
+#    blur = np.sqrt(eps/2)
+#    KeOpsSolver = SamplesLoss(
+#      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online"
+#    )
     # TODO: In the next steps there's a range of things we can try: 
     #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
     #    no knowledge about the duals. We, on the other hand, have a good estimate of the duals, since
@@ -406,26 +406,26 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     #    it would be nicer to already solve the problem with the correct references.
 
     # Solve cell problem
-    alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KesubMuYEff, KesubPosY)
-    msg = 0 # TODO: stablish messages in the KeOps solver
+#    alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KesubMuYEff, KesubPosY)
+#    msg = 0 # TODO: stablish messages in the KeOps solver
     # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
     # Here we change the reference measure so that it is Ke
-    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY)
+#    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY)
 
     # Get transport plan
-    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
+#    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
     # Truncate plan
-    P[P<YThresh] = 0
-    I, J = torch.nonzero(P, as_tuple = True)
-    V = P[I,J]
-    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
+#    P[P<YThresh] = 0
+#    I, J = torch.nonzero(P, as_tuple = True)
+#    V = P[I,J]
+#    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
 
     # Turn alpha and beta into numpy arrays
-    alpha = alpha.cpu().numpy()
+#    alpha = alpha.cpu().numpy()
     #print(alpha)
-    beta = beta.cpu().numpy()
-    return msg, alpha, beta, pi
+#    beta = beta.cpu().numpy()
+#    return msg, alpha, beta, pi
 
 
 def DomDecIteration_KeOps(\
