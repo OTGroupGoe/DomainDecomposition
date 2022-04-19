@@ -180,12 +180,11 @@ def GetPartitionData(atomicCells,metaCells):
 
 # serial implementation of one domdec half-iteration
 def Iterate(\
-        muY,posY,eps,\
+        muY,posY,eps,size\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
         muXList,posXList,alphaList,betaDataList,betaIndexList,\
-        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, SinkhornErrorRel=False,\
-        size = 0):
+        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, SinkhornErrorRel=False,):
 
 
     nCells=len(muXList)
@@ -201,12 +200,11 @@ def Iterate(\
         
     if SolveOnCell == SolveOnCellKeops:
         for i in range(nCells):
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,size\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i],\
-                    size = 0)
+                    partitionDataCompCellIndices[i],)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
@@ -431,8 +429,8 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
 
 
 def DomDecIteration_KeOps(\
-        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
-        muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,matrix_size\
+        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_size,\
+        muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices\
         ):
     #use the bounding_box_2D to speed up operations on GPU
 
