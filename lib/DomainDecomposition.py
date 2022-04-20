@@ -1,6 +1,8 @@
 import numpy as np
 import scipy
 import torch
+import geomloss 
+from geomloss import SamplesLoss
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 from .CPPSinkhorn import CPPSinkhorn as CPPSinkhorn
