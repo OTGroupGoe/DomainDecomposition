@@ -450,7 +450,7 @@ def DomDecIteration_KeOps(\
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
 
     #convert to bounding Box 
-    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYAtomicListData,muYAtomicListIndices,512)
+    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYCellData,muYCellIndices,512)
     
     print("passed bounding Box")
 
@@ -1078,7 +1078,6 @@ def bounding_Box_2D(data,index,matrix_size):
     #I asssume the indices are give in order
 
     #step 1 find the maxima for each dimension, 2 are given by the first and last entry, 2 are searched for in the entire array
-    print(index)
     left = index[0] // matrix_size
     right = index[len(index)-1] // matrix_size + 1
     lower = index[0] % matrix_size
@@ -1086,7 +1085,6 @@ def bounding_Box_2D(data,index,matrix_size):
 
     for x in index:
         x_mod = x % matrix_size
-        print(x_mod)
     if x_mod < lower:
         lower = x_mod
     elif x_mod > upper:
