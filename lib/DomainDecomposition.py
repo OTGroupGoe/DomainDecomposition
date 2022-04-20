@@ -1078,7 +1078,7 @@ def bounding_Box_2D(data,index,matrix_size):
     #I asssume the indices are give in order
 
     #step 1 find the maxima for each dimension, 2 are given by the first and last entry, 2 are searched for in the entire array
-
+    print(index)
     left = index[0] // matrix_size
     right = index[len(index)-1] // matrix_size + 1
     lower = index[0] % matrix_size
