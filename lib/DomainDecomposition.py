@@ -1085,8 +1085,8 @@ def bounding_Box_2D(data,index,matrix_size):
     upper = index[0] % matrix_size
 
     for x in index:
-        print(x)
         x_mod = x % matrix_size
+        print(x_mod)
     if x_mod < lower:
         lower = x_mod
     elif x_mod > upper:
