@@ -444,6 +444,8 @@ def DomDecIteration_KeOps(\
     for x,y in zip(muYAtomicListData,muYAtomicListIndices):
         arrayAdder.add(x,y)
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
+    
+    print(muYCellIndices)
 
     # another dummy return and dummy function call
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
