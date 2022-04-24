@@ -2,6 +2,7 @@ import numpy as np
 import scipy
 import torch
 import geomloss 
+from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
