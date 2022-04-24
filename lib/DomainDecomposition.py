@@ -1116,7 +1116,7 @@ def bounding_Box_2D(data,index,matrix_size):
                 counter = counter + 1
             else:
                 box_data[loc]=0 
-  return np.array(box_data), np.array(box_index)
+    return np.array(box_data), np.array(box_index)
         
         
         
