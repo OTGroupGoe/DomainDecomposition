@@ -1085,11 +1085,12 @@ def bounding_Box_2D(data,index,matrix_size):
     #I asssume the indices are give in order
 
     #step 1 find the maxima for each dimension, 2 are given by the first and last entry, 2 are searched for in the entire array
+
     left = index[0] // matrix_size
     right = index[len(index)-1] // matrix_size + 1
     lower = index[0] % matrix_size
     upper = index[0] % matrix_size
-
+  
     for x in index:
         x_mod = x % matrix_size
     if x_mod < lower:
@@ -1104,18 +1105,18 @@ def bounding_Box_2D(data,index,matrix_size):
     box_index = [0] * (box_width * box_hight)
     box_data = [0] * (box_width * box_hight + 1)
     counter = 0
-    start = lower * matrix_size + left
+    start = lower  + left * matrix_size
     for y in range (0, box_width):
         for x in range (0, box_hight):
             loc = x + y* box_hight
             loc_index = start + x + matrix_size * y
-            box_index[loc] = [left + y, lower + x]
-        if counter < len(index) and index[counter] == loc_index:      
-            box_data[loc] = data[counter]
-            counter = counter + 1
-        else:
-            box_data[loc]=0 
-    return np.array(box_data), np.array(box_index)
+            box_index[loc] = loc_index
+            if counter < len(index) and index[counter] == loc_index:      
+                box_data[loc] = data[counter]
+                counter = counter + 1
+            else:
+                box_data[loc]=0 
+  return np.array(box_data), np.array(box_index)
         
         
         
