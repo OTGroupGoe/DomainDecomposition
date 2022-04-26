@@ -2,6 +2,7 @@ import numpy as np
 import scipy
 import torch
 import geomloss 
+np.set_printoptions(threshold=10000)
 from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
 from . import Common
@@ -447,6 +448,8 @@ def DomDecIteration_KeOps(\
     for x,y in zip(muYAtomicListData,muYAtomicListIndices):
         arrayAdder.add(x,y)
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
+    
+    print(muYCellData)
 
     # another dummy return and dummy function call
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
@@ -454,6 +457,8 @@ def DomDecIteration_KeOps(\
 
     #convert to bounding Box 
     muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYCellData,muYCellIndices,512)
+    
+    print(muYCellDataBox)
     
     print("passed bounding Box")
 
