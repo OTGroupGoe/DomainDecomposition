@@ -450,6 +450,7 @@ def DomDecIteration_KeOps(\
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
     
     print(len(muYCellIndices))
+    print(len(muYCellData))
 
     # another dummy return and dummy function call
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
@@ -459,6 +460,7 @@ def DomDecIteration_KeOps(\
     muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYCellData,muYCellIndices,512)
     
     print(len(muYCellIndicesBox))
+    print(len(muYCellDataBox))
     
     print("passed bounding Box")
 
