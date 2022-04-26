@@ -450,7 +450,6 @@ def DomDecIteration_KeOps(\
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
     
     print(muYCellIndices)
-    print(new Matrix)
 
     # another dummy return and dummy function call
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
