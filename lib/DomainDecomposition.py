@@ -453,14 +453,9 @@ def DomDecIteration_KeOps(\
 
     #convert to bounding Box 
     muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYCellData,muYCellIndices,512)
-    
-    print("box")
-    print(len(muYCellDataBox))
-    print(len(muYCellIndicesBox))
-
-
+   
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellDataBox,muYCellIndicesBox,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
