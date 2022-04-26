@@ -1105,7 +1105,7 @@ def bounding_Box_2D(data,index,matrix_size):
     box_width = right - left
     box_hight = upper - lower + 1
     box_index = [0] * (box_width * box_hight)
-    box_data = [0] * (box_width * box_hight + 1)
+    box_data = [0] * (box_width * box_hight)
     counter = 0
     start = lower  + left * matrix_size
     for y in range (0, box_width):
