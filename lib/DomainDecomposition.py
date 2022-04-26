@@ -441,34 +441,21 @@ def DomDecIteration_KeOps(\
         ):
     #use the bounding_box_2D to speed up operations on GPU
     
-    print("started Iteration")
-
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
     for x,y in zip(muYAtomicListData,muYAtomicListIndices):
         arrayAdder.add(x,y)
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
     
-    print(len(muYCellIndices))
-    print(len(muYCellData))
-
     # another dummy return and dummy function call
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
 
     #convert to bounding Box 
     muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYCellData,muYCellIndices,512)
-    
-    print(len(muYCellIndicesBox))
-    print(len(muYCellDataBox))
-    
-    print("passed bounding Box")
 
     # solve on cell
     msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellDataBox,muYCellIndicesBox,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel)
-
-
-    print("passed solve on cell")
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
