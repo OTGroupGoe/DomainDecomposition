@@ -454,8 +454,9 @@ def DomDecIteration_KeOps(\
     #convert to bounding Box 
     muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYCellData,muYCellIndices,512)
     
-    print("boxdata" + len(muYCellDataBox))
-    print("boxindex" + len(muYCellIndicesBox))
+    print("box")
+    print(len(muYCellDataBox))
+    print(len(muYCellIndicesBox))
 
 
     # solve on cell
