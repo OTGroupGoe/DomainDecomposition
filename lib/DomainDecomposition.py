@@ -189,11 +189,12 @@ def Iterate(\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
         muXList,posXList,alphaList,betaDataList,betaIndexList,\
-        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, SinkhornErrorRel=False,):
+        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, 
+        SinkhornErrorRel=False,BoundingBox=False): # Introducing bounding box as an additional argument
 
 
     nCells=len(muXList)
-    keops = 0;
+    keops = 0
 
     if SinkhornSubSolver=="LogSinkhorn":
     	SolveOnCell=SolveOnCell_LogSinkhorn
@@ -212,7 +213,7 @@ def Iterate(\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i])
+                    partitionDataCompCellIndices[i], BoundingBox = BoundingBox)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
@@ -437,8 +438,8 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
 
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
-        muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices\
-        ):
+        muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
+        BoundingBox):
     #use the bounding_box_2D to speed up operations on GPU
     
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
@@ -452,10 +453,14 @@ def DomDecIteration_KeOps(\
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
 
     #convert to bounding Box 
-    muYCellDataBox,muYCellIndicesBox = bounding_Box_2D(muYCellData,muYCellIndices,512)
+    if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
+        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,512) 
+        # TODO: this value "512" should be replaced by the current size of the marginal. 
+        # It seems it is not exposed to this function, so probably we should make it arrive here. 
+        # This is encoded in the notebook by the variable "shapeX", which is a tuple with the size of each dimension.
    
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellDataBox,muYCellIndicesBox,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
@@ -1068,7 +1073,12 @@ def getHierarchicalKernel(MultiScaleSetupX,MultiScaleSetupY,dim,hierarchy_depth,
 from numpy.ma.core import array
 
 
-
+# TODO: new implementation that works for all cases, using numpy for speed and clearness, well tested.
+# TODO: 3D implementation in 3D, tested as well. Once you have the numpy 2D one, it is mostly taking into account the changes from 
+# linear indexing to cartesian index. For an array of shape (N0, N1, N2):
+# Linear to cartesian: k -> k//(N1*N2), (k%(N1*N2))//N2, k%N2
+# Cartesian to linear: (k1, k2, k3) -> k0*N1*N2 + k1*N2 + k2
+# Please check that these conversions work by testing them in a random 3D array!
 def bounding_Box_2D(data,index,matrix_size):
     #works only with square Matrix, but can be adapted to rectangular ones
     #I asssume the indices are give in order
