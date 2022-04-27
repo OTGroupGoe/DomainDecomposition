@@ -467,6 +467,7 @@ def DomDecIteration_KeOps(\
             Common.GetPartialYMarginal(pi,range(*indices))
             for indices in partitionDataCompCellIndices
             ]
+    
             
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
@@ -779,11 +780,11 @@ def BalanceMeasuresMulti(muYAtomicListSub,atomicCellMassesSub,threshStep=1E-16,t
     return (1,muYAtomicListSub)
 
 
-def BalanceMeasuresMultiAll(muYAtomicDataList,atomicCellMasses,partitionDataCompCells,verbose=False):
+def BalanceMeasuresMultiAll(muYAtomicDataList,atomicCellMasses,partitionDataCompCells,verbose=False,threshTerminate=1e-6):
     for i in range(len(partitionDataCompCells)):
         muYAtomicListSub=[muYAtomicDataList[j] for j in partitionDataCompCells[i]]
         atomicCellMassesSub=atomicCellMasses[partitionDataCompCells[i]]
-        msg,muYAtomicData=BalanceMeasuresMulti(muYAtomicListSub,atomicCellMassesSub)
+        msg,muYAtomicData=BalanceMeasuresMulti(muYAtomicListSub,atomicCellMassesSub,threshTerminate=threshTerminate)
 
         for jsub,j in enumerate(partitionDataCompCells[i]):
             muYAtomicDataList[j]=muYAtomicData[jsub]
