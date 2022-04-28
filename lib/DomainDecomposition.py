@@ -209,11 +209,11 @@ def Iterate(\
     if keops == 1:
         for i in range(nCells):
             print(i)
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i], BoundingBox = BoundingBox, matrix_shape)
+                    partitionDataCompCellIndices[i], BoundingBox = BoundingBox)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
@@ -437,9 +437,9 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     return msg, alpha, beta, pi
 
 def DomDecIteration_KeOps(\
-        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        BoundingBox,matrix_shape):
+        BoundingBox):
     #use the bounding_box_2D to speed up operations on GPU
     
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
