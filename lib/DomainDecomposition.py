@@ -188,7 +188,7 @@ def Iterate(\
         muY,posY,eps,\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
-        muXList,posXList,alphaList,betaDataList,betaIndexList,\
+        muXList,posXList,alphaList,betaDataList,betaIndexList,matrix_shape,\
         SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, 
         SinkhornErrorRel=False,BoundingBox=False): # Introducing bounding box as an additional argument
 
