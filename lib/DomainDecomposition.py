@@ -213,7 +213,7 @@ def Iterate(\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i], BoundingBox = BoundingBox)
+                    partitionDataCompCellIndices[i], BoundingBox = BoundingBox, matrix_shape)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
@@ -439,7 +439,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        BoundingBox):
+        BoundingBox,matrix_shape):
     #use the bounding_box_2D to speed up operations on GPU
     
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
@@ -454,7 +454,7 @@ def DomDecIteration_KeOps(\
 
     #convert to bounding Box 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
-        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,512) 
+        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,matrix_shape) 
         # TODO: this value "512" should be replaced by the current size of the marginal. 
         # It seems it is not exposed to this function, so probably we should make it arrive here. 
         # This is encoded in the notebook by the variable "shapeX", which is a tuple with the size of each dimension.
