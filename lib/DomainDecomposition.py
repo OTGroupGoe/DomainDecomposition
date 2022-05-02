@@ -1082,26 +1082,25 @@ from numpy.ma.core import array
 # Please check that these conversions work by testing them in a random 3D array!
 
 def bounding_Box_2D(data,index,matrix_size):
-  cartesian_index_x = np.array(0)
-  cartesian_index_y = np.array(0)
-  cartesian_index_x,cartesian_index_y = (index % matrix_size[0], index // matrix_size[1]) 
+    x_size,y_size = matrix_size
+    cartesian_index_x,cartesian_index_y = index % x_size, index // y_size
 
-  left = cartesian_index_x.min()
-  right = cartesian_index_x.max()
-  lower = cartesian_index_y.min()
-  upper = cartesian_index_y.max()
-  box_width = right - left + 1
-  box_hight = upper - lower + 1 
+    left = cartesian_index_x.min()
+    right = cartesian_index_x.max()
+    lower = cartesian_index_y.min()
+    upper = cartesian_index_y.max()
+    box_width = right - left + 1
+    box_hight = upper - lower + 1 
 
-  box_data = np.zeros((box_width,box_hight))
-  box_data[cartesian_index_x - left,cartesian_index_y - lower] = data
+    box_data = np.zeros((box_width,box_hight))
+    box_data[cartesian_index_x - left,cartesian_index_y - lower] = data
 
-  box_index = [0] * (box_width * box_hight)
-  box_index = np.where(box_data>=0)[0] + np.where(box_data>=0)[1]*matrix_size[0]
+    box_index = [0] * (box_width * box_hight)
+    box_index = np.where(box_data>=0)[0] + left + (np.where(box_data>=0)[1] + lower)*matrix_size[0]
 
-  box_data = box_data.flatten()
+    box_data = box_data.flatten()
 
-  return box_data,box_index
+    return box_data,box_index
         
         
         
