@@ -188,7 +188,7 @@ def Iterate(\
         muY,posY,eps,\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
-        muXList,posXList,alphaList,betaDataList,betaIndexList,\
+        muXList,posXList,alphaList,betaDataList,betaIndexList,matrix_shape,\
         SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, 
         SinkhornErrorRel=False,BoundingBox=False): # Introducing bounding box as an additional argument
 
@@ -209,7 +209,7 @@ def Iterate(\
     if keops == 1:
         for i in range(nCells):
             print(i)
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
@@ -382,7 +382,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     # in our LogSinkhorn have the same solution
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
-      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online"
+      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = alphaInit
     )
     # TODO: In the next steps there's a range of things we can try: 
     #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
@@ -437,7 +437,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     return msg, alpha, beta, pi
 
 def DomDecIteration_KeOps(\
-        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
+        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
         BoundingBox):
     #use the bounding_box_2D to speed up operations on GPU
@@ -454,7 +454,7 @@ def DomDecIteration_KeOps(\
 
     #convert to bounding Box 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
-        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,512) 
+        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,matrix_shape) 
         # TODO: this value "512" should be replaced by the current size of the marginal. 
         # It seems it is not exposed to this function, so probably we should make it arrive here. 
         # This is encoded in the notebook by the variable "shapeX", which is a tuple with the size of each dimension.
@@ -1080,43 +1080,27 @@ from numpy.ma.core import array
 # Linear to cartesian: k -> k//(N1*N2), (k%(N1*N2))//N2, k%N2
 # Cartesian to linear: (k1, k2, k3) -> k0*N1*N2 + k1*N2 + k2
 # Please check that these conversions work by testing them in a random 3D array!
+
 def bounding_Box_2D(data,index,matrix_size):
-    #works only with square Matrix, but can be adapted to rectangular ones
-    #I asssume the indices are give in order
+    x_size,y_size = matrix_size
+    cartesian_index_x,cartesian_index_y = index % x_size, index // y_size
 
-    #step 1 find the maxima for each dimension, 2 are given by the first and last entry, 2 are searched for in the entire array
+    left = cartesian_index_x.min()
+    right = cartesian_index_x.max()
+    lower = cartesian_index_y.min()
+    upper = cartesian_index_y.max()
+    box_width = right - left + 1
+    box_hight = upper - lower + 1 
 
-    left = index[0] // matrix_size
-    right = index[len(index)-1] // matrix_size + 1
-    lower = index[0] % matrix_size
-    upper = index[0] % matrix_size
-  
-    for x in index:
-        x_mod = x % matrix_size
-    if x_mod < lower:
-        lower = x_mod
-    elif x_mod > upper:
-        upper = x_mod
+    box_data = np.zeros((box_width,box_hight))
+    box_data[cartesian_index_x - left,cartesian_index_y - lower] = data
 
-    #step 2 assemble the new Matrix, go through the box and add values if there are some given.
-
-    box_width = right - left
-    box_hight = upper - lower + 1
     box_index = [0] * (box_width * box_hight)
-    box_data = [0] * (box_width * box_hight)
-    counter = 0
-    start = lower  + left * matrix_size
-    for y in range (0, box_width):
-        for x in range (0, box_hight):
-            loc = x + y* box_hight
-            loc_index = start + x + matrix_size * y
-            box_index[loc] = loc_index
-            if counter < len(index) and index[counter] == loc_index:      
-                box_data[loc] = data[counter]
-                counter = counter + 1
-            else:
-                box_data[loc]=0 
-    return np.array(box_data), np.array(box_index)
+    box_index = np.where(box_data>=0)[0] + left + (np.where(box_data>=0)[1] + lower)*matrix_size[0]
+
+    box_data = box_data.flatten()
+
+    return box_data,box_index
         
         
         
