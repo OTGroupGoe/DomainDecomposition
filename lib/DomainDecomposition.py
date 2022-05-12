@@ -382,7 +382,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     # in our LogSinkhorn have the same solution
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
-      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online"
+      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = alphaInit
     )
     # TODO: In the next steps there's a range of things we can try: 
     #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
