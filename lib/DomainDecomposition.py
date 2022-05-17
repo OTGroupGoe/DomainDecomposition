@@ -374,7 +374,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
     # This is just a quick fix of converting the initial alphas to Tensor Data
     # TODO transform the basic data in Tenssor form
-    KealphaInit = torch.tensor(subMuEff).cuda()
+    KealphaInit = torch.tensor(alphaInit).cuda()
     
     if SinkhornErrorRel:
         effectiveError=SinkhornError*np.sum(muX)
