@@ -372,6 +372,10 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     KesubPosY = torch.tensor(subPosY).cuda()
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
+    # This is just a quick fix of converting the initial alphas to Tensor Data
+    # TODO transform the basic data in Tenssor form
+    KealphaInit = torch.tensor(subMuEff).cuda()
+    
     if SinkhornErrorRel:
         effectiveError=SinkhornError*np.sum(muX)
     else:
@@ -382,7 +386,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     # in our LogSinkhorn have the same solution
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
-      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = alphaInit
+      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit
     )
     # TODO: In the next steps there's a range of things we can try: 
     #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
