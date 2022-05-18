@@ -216,7 +216,7 @@ def Iterate(\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
                     partitionDataCompCellIndices[i], const_iterations,\
-                    BoundingBox = BoundingBox)
+                    BoundingBox)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
