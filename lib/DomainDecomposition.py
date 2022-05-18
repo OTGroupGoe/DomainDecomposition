@@ -189,8 +189,10 @@ def Iterate(\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
         muXList,posXList,alphaList,betaDataList,betaIndexList,matrix_shape,\
-        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4, 
-        SinkhornErrorRel=False,BoundingBox=False): # Introducing bounding box as an additional argument
+        SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4,\
+        SinkhornErrorRel=False, const_iterations = 0,\
+        BoundingBox=False): # Introducing bounding box as an additional argument
+        #introducing the option to remove epsilon scaling, leave const_iterations at 0 to keep the scalling
 
 
     nCells=len(muXList)
@@ -213,7 +215,8 @@ def Iterate(\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i], BoundingBox = BoundingBox)
+                    partitionDataCompCellIndices[i], const_iterations,\
+                    BoundingBox = BoundingBox)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
@@ -353,7 +356,7 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             shape=(muX.shape[0],subMuY.shape[0]))
     return (result[0],result[1],result[2],resultKernel)
 
-def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True):
+def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,const_iterations = 0):
     
     # X data to GPU
     KeposX = torch.tensor(posX).cuda()
@@ -386,7 +389,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     # in our LogSinkhorn have the same solution
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
-      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit
+      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit, const_iterations
     )
     # TODO: In the next steps there's a range of things we can try: 
     #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
