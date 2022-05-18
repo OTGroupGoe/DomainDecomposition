@@ -446,7 +446,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        BoundingBox):
+        BoundingBox, const_iterations  = 0):
     #use the bounding_box_2D to speed up operations on GPU
     
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
@@ -467,7 +467,7 @@ def DomDecIteration_KeOps(\
         # This is encoded in the notebook by the variable "shapeX", which is a tuple with the size of each dimension.
    
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel,const_iterations)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
