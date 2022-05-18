@@ -448,7 +448,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        const_iterations  = 0, BoundingBox):
+        const_iterations, BoundingBox):
     #use the bounding_box_2D to speed up operations on GPU
     print("DomDecIteration_KeOps", const_iterations)
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
