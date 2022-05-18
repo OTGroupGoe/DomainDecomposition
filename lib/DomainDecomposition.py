@@ -450,7 +450,6 @@ def DomDecIteration_KeOps(\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
         const_iterations, BoundingBox):
     #use the bounding_box_2D to speed up operations on GPU
-    print("DomDecIteration_KeOps", const_iterations)
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
     for x,y in zip(muYAtomicListData,muYAtomicListIndices):
@@ -469,7 +468,7 @@ def DomDecIteration_KeOps(\
         # This is encoded in the notebook by the variable "shapeX", which is a tuple with the size of each dimension.
    
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel,const_iterations)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, const_iterations = const_iterations)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
