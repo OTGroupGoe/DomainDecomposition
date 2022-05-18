@@ -388,7 +388,6 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     # Besides, their cost reads 0.5*|x-y|^2. The following choice of blur makes problems in geomloss and
     # in our LogSinkhorn have the same solution
     
-    print("SolveOnCellKeops", const_iterations)
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
       "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit, const_iterations  = const_iterations
@@ -502,7 +501,6 @@ def DomDecIteration_SparseY(\
         arrayAdder.add(x,y)
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
 
-    print("Iterate", const_iterations)
     # another dummy return and dummy function call
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
