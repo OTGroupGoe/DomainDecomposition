@@ -388,7 +388,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     # Besides, their cost reads 0.5*|x-y|^2. The following choice of blur makes problems in geomloss and
     # in our LogSinkhorn have the same solution
     
-    println("SolveOnCellKeops", const_iterations)
+    print("SolveOnCellKeops", const_iterations)
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
       "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit, const_iterations  = const_iterations
@@ -450,7 +450,7 @@ def DomDecIteration_KeOps(\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
         BoundingBox, const_iterations  = 0):
     #use the bounding_box_2D to speed up operations on GPU
-    println("DomDecIteration_KeOps", const_iterations)
+    print("DomDecIteration_KeOps", const_iterations)
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
     for x,y in zip(muYAtomicListData,muYAtomicListIndices):
@@ -503,7 +503,7 @@ def DomDecIteration_SparseY(\
         arrayAdder.add(x,y)
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
 
-    println("Iterate", const_iterations)
+    print("Iterate", const_iterations)
     # another dummy return and dummy function call
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
