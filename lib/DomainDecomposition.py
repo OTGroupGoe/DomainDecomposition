@@ -188,9 +188,9 @@ def Iterate(\
         muY,posY,eps,\
         partitionDataCompCells,partitionDataCompCellIndices,\
         muYAtomicDataList,muYAtomicIndicesList,\
-        muXList,posXList,alphaList,betaDataList,betaIndexList,matrix_shape,\
+        muXList,posXList,alphaList,betaDataList,betaIndexList,shape,\
         SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4,\
-        SinkhornErrorRel=False, const_iterations = 0,\
+        SinkhornErrorRel=False, SinkhornMaxIter = None,\
         BoundingBox=False): # Introducing bounding box as an additional argument
         #introducing the option to remove epsilon scaling, leave const_iterations at 0 to keep the scalling
 
@@ -211,11 +211,11 @@ def Iterate(\
     if keops == 1:
         for i in range(nCells):
             print(i)
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOps(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
                     muXList[i],posXList[i],alphaList[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i], const_iterations,\
+                    partitionDataCompCellIndices[i], SinkhornMaxIter,\
                     BoundingBox)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
@@ -356,7 +356,7 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             shape=(muX.shape[0],subMuY.shape[0]))
     return (result[0],result[1],result[2],resultKernel)
 
-def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,const_iterations = 0):
+def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None):
     
     # X data to GPU
     KeposX = torch.tensor(posX).cuda()
@@ -390,7 +390,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
-      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit, const_iterations  = const_iterations
+      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit, SinkhornMaxIter  = SinkhornMaxIter
     )
     # TODO: In the next steps there's a range of things we can try: 
     #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
@@ -445,9 +445,9 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     return msg, alpha, beta, pi
 
 def DomDecIteration_KeOps(\
-        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,matrix_shape,\
+        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        const_iterations, BoundingBox):
+        SinkhornMaxIter, BoundingBox):
     #use the bounding_box_2D to speed up operations on GPU
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
@@ -461,13 +461,10 @@ def DomDecIteration_KeOps(\
 
     #convert to bounding Box 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
-        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,matrix_shape) 
-        # TODO: this value "512" should be replaced by the current size of the marginal. 
-        # It seems it is not exposed to this function, so probably we should make it arrive here. 
-        # This is encoded in the notebook by the variable "shapeX", which is a tuple with the size of each dimension.
+        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
    
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, const_iterations = const_iterations)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
