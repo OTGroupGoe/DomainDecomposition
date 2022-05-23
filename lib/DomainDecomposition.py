@@ -440,9 +440,9 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
 
     # Turn alpha and beta into numpy arrays
-    alpha = alpha.cpu().numpy()
+    alpha = alpha.cpu().numpy().ravel()
     #print(alpha)
-    beta = beta.cpu().numpy()
+    beta = beta.cpu().numpy().ravel()
     return msg, alpha, beta, pi
 
 def DomDecIteration_KeOps(\
