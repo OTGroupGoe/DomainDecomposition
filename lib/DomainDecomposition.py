@@ -1088,7 +1088,7 @@ from numpy.ma.core import array
 
 def bounding_Box_2D(data,index,matrix_size):
   x_size,y_size = matrix_size
-  cartesian_index_x,cartesian_index_y = index % x_size, index // y_size
+  cartesian_index_x,cartesian_index_y = index // y_size, index % y_size
 
   left = np.min(cartesian_index_x)
   right = np.max(cartesian_index_x)
@@ -1101,7 +1101,7 @@ def bounding_Box_2D(data,index,matrix_size):
   box_data[cartesian_index_x - left,cartesian_index_y - lower] = data
 
   box_index = [0] * (box_width * box_hight)
-  box_index = np.where(box_data>=0)[0] + np.where(box_data>=0)[1]*matrix_size[0]
+  box_index = (np.where(box_data>=0)[0] + left)*y_size + np.where(box_data>=0)[1] + lower
 
   box_data = box_data.flatten()
 
