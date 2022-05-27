@@ -378,7 +378,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
     # This is just a quick fix of converting the initial alphas to Tensor Data
     # TODO transform the basic data in Tenssor form
-    KealphaInit = torch.tensor(alphaInit).cuda()
+    KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
     if SinkhornErrorRel:
         effectiveError=SinkhornError*np.sum(muX)
@@ -443,7 +443,10 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     alpha = alpha.cpu().numpy().ravel()
     #print(alpha)
     beta = beta.cpu().numpy().ravel()
-    return msg, alpha, beta, pi
+    # Multiply duals by 2 to recover behavior for cost |x-y|^2
+    alpha = 2*alpha
+    beta = 2*beta
+    return msg, alpha, beta, pi 
 
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
