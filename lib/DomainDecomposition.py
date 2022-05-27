@@ -427,7 +427,9 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KesubMuYEff, KesubPosY)
     msg = 0 # TODO: stablish messages in the KeOps solver
     # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
-    # Here we change the reference measure so that it is Ke
+    # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
+    # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
+    # KesubMuYEff but we want to change it to KesubRhoY
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY)
 
     # Get transport plan
