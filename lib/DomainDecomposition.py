@@ -205,6 +205,9 @@ def Iterate(\
     elif SinkhornSubSolver == "SolveOnCellKeops":
         keops = 1
         SolveOnCell = SolveOnCellKeops
+    elif SinkhornSubSolver == "SolveOnCellKeopsGrid":
+        keops = 1
+        SolveOnCell = SolveOnCellKeopsGrid
     else:
         SolveOnCell=SinkhornSubSolver    
         
@@ -356,6 +359,112 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     resultKernel=scipy.sparse.csr_matrix((result[3],result[4],result[5]),\
             shape=(muX.shape[0],subMuY.shape[0]))
     return (result[0],result[1],result[2],resultKernel)
+
+def DomDecIteration_KeOpsGrid(\
+        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
+        muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
+        SinkhornMaxIter, BoundingBox):
+    #use the bounding_box_2D to speed up operations on GPU
+     # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
+    arrayAdder=LogSinkhorn.TSparseArrayAdder()
+    for x,y in zip(muYAtomicListData,muYAtomicListIndices):
+        arrayAdder.add(x,y)
+    muYCellData,muYCellIndices=arrayAdder.getDataTuple()
+    
+    # another dummy return and dummy function call
+    #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
+    #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
+
+    #convert to bounding Box 
+    if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
+        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
+   
+    # solve on cell
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muY,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter)
+    
+    # extract new atomic muY
+    resultMuYAtomicDataList=[\
+            Common.GetPartialYMarginal(pi,range(*indices))
+            for indices in partitionDataCompCellIndices
+            ]
+    
+            
+
+    return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
+
+# muY is added ... check the call
+def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None):
+    
+    KeposX = torch.tensor(posX).cuda()
+    KemuX = torch.tensor(muX).cuda()
+    KeposY = torch.tensor(posY).cuda()
+    KemuY = torch.tensor(muY).cuda()
+
+    KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
+
+    if SinkhornErrorRel:
+        effectiveError=SinkhornError*np.sum(muX)
+    else:
+        effectiveError=SinkhornError
+
+    blur = np.sqrt(eps/2)
+    KeOpsSolver = SamplesLoss(
+        "sinkhorn", p=2, blur=blur, scaling=0.99, debias=False, potentials=True, backend = "online", a_init = KealphaInit, SinkhornMaxIter  = SinkhornMaxIter
+        )
+    alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KemuY, KeposY)
+
+    # ----------------
+    # With new softmin-grid
+    # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
+    # and then the physical dimensions come
+    a = KemuX.view((1,1,new_N, new_N))
+    b = KemuY.view((1,1,new_N, new_N))
+    scaling = 0.99
+
+    #b = b[:,:,:new_N//2,:new_N//2]
+    #b /= torch.sum(b)
+
+    alphagg,betagg = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
+        a,
+        b,
+        p=2,
+        blur=blur,
+        reach=None,
+        axes=None,
+        scaling=0.99,
+        cost=None,
+        debias=False,
+        potentials=True,
+        verbose=False,
+        multiscale=False,
+        dx=1/new_N, 
+        a_init = KealphaInit, 
+        SinkhornMaxIter  = SinkhornMaxIter
+    )
+
+    alpha_cpu = alpha.cpu().reshape(new_N, new_N)
+    alphag_cpu = alphag.cpu().reshape(new_N, new_N)
+    delta = torch.mean(alpha_cpu) - torch.mean(alphag_cpu)
+
+    # Compute marginal violation
+    # The first marginal of the current coupling can be computed as 
+    # u * (K @ v), where u and v are the scaling factors.
+    # Besides, calling u_new = a / (K @ v) the scaling vector computed from v, 
+    # then alpha_new = eps*log(u_new) can be computed with the softmin provided by 
+    # geomloss, and then the first marginal of the actual coupling reads just
+    # a * u / u_new.
+    # An analogous argument works for the second marginal 
+    eps = blur**2
+    a = KemuX.reshape((new_N, new_N))
+    b = KemuY.reshape((new_N, new_N))
+
+    alphagg_new = geomloss.utils.softmin_grid(eps, 2, torch.log(b) + betagg/eps)
+    betagg_new  = geomloss.utils.softmin_grid(eps, 2, torch.log(a) + alphagg/eps)
+    logmarg1 = torch.log(a) + alphagg/eps -  alphagg_new/eps
+    logmarg2 = torch.log(b) + betagg/eps -  betagg_new/eps
+    torch.norm(torch.exp(logmarg1) - a, p=1), torch.norm(torch.exp(logmarg2) - b,p=1)
+
+    return msg, alpha, beta, pi 
 
 def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None):
     
