@@ -377,10 +377,10 @@ def DomDecIteration_KeOpsGrid(\
 
     #convert to bounding Box 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
-        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
+        muYCellData,muYCellIndices,boxDim = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
    
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muY,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muY,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
@@ -399,70 +399,78 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(muY).cuda()
-
+    dim = posX.shape[1]
+    
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
+    
+     # Y data: extract
+    subPosY=posY[subY].copy()
+    subRhoY=rhoY[subY].copy()
+    
+    # Why? subMuY should be already normalized!
+    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
+   
+    # Y data: to GPU
+    KesubPosY = torch.tensor(subPosY).cuda()
+    KesubRhoY = torch.tensor(subRhoY).cuda()
+    KesubMuYEff = torch.tensor(subMuYEff).cuda()
 
+    blur = np.sqrt(eps/2)
     if SinkhornErrorRel:
         effectiveError=SinkhornError*np.sum(muX)
     else:
         effectiveError=SinkhornError
 
-    blur = np.sqrt(eps/2)
-    KeOpsSolver = SamplesLoss(
-        "sinkhorn", p=2, blur=blur, scaling=0.99, debias=False, potentials=True, backend = "online", a_init = KealphaInit, SinkhornMaxIter  = SinkhornMaxIter
-        )
-    alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KemuY, KeposY)
-
     # ----------------
     # With new softmin-grid
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
-    a = KemuX.view((1,1,new_N, new_N))
-    b = KemuY.view((1,1,new_N, new_N))
-    scaling = 0.99
+    a = KemuX.view((1,1,dim, dim))
+    b = KemuY.view((1,1,boxDim[0],boxDim[1]))
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
 
-    alphagg,betagg = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
+    alpha,beta = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
         a,
         b,
         p=2,
         blur=blur,
         reach=None,
         axes=None,
-        scaling=0.99,
         cost=None,
         debias=False,
         potentials=True,
         verbose=False,
         multiscale=False,
-        dx=1/new_N, 
+        dx=dx, 
         a_init = KealphaInit, 
         SinkhornMaxIter  = SinkhornMaxIter
     )
 
-    alpha_cpu = alpha.cpu().reshape(new_N, new_N)
-    alphag_cpu = alphag.cpu().reshape(new_N, new_N)
-    delta = torch.mean(alpha_cpu) - torch.mean(alphag_cpu)
+    msg = 0 # TODO: stablish messages in the KeOps solver
+    # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
+    # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
+    # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
+    # KesubMuYEff but we want to change it to KesubRhoY
+    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY)
 
-    # Compute marginal violation
-    # The first marginal of the current coupling can be computed as 
-    # u * (K @ v), where u and v are the scaling factors.
-    # Besides, calling u_new = a / (K @ v) the scaling vector computed from v, 
-    # then alpha_new = eps*log(u_new) can be computed with the softmin provided by 
-    # geomloss, and then the first marginal of the actual coupling reads just
-    # a * u / u_new.
-    # An analogous argument works for the second marginal 
-    eps = blur**2
-    a = KemuX.reshape((new_N, new_N))
-    b = KemuY.reshape((new_N, new_N))
+    # Get transport plan
+    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
-    alphagg_new = geomloss.utils.softmin_grid(eps, 2, torch.log(b) + betagg/eps)
-    betagg_new  = geomloss.utils.softmin_grid(eps, 2, torch.log(a) + alphagg/eps)
-    logmarg1 = torch.log(a) + alphagg/eps -  alphagg_new/eps
-    logmarg2 = torch.log(b) + betagg/eps -  betagg_new/eps
-    torch.norm(torch.exp(logmarg1) - a, p=1), torch.norm(torch.exp(logmarg2) - b,p=1)
+    # Truncate plan
+    P[P<YThresh] = 0
+    I, J = torch.nonzero(P, as_tuple = True)
+    V = P[I,J]
+    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
+
+    # Turn alpha and beta into numpy arrays
+    alpha = alpha.cpu().numpy().ravel()
+    #print(alpha)
+    beta = beta.cpu().numpy().ravel()
+    # Multiply duals by 2 to recover behavior for cost |x-y|^2
+    alpha = 2*alpha
+    beta = 2*beta
 
     return msg, alpha, beta, pi 
 
@@ -1219,7 +1227,7 @@ def bounding_Box_2D(data,index,matrix_size):
 
   box_data = box_data.flatten()
 
-  return box_data,box_index
+  return box_data,box_index,(box_width,box_hight)
         
         
         
