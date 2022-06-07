@@ -584,7 +584,7 @@ def DomDecIteration_KeOps(\
 
     #convert to bounding Box 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
-        muYCellData,muYCellIndices = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
+        muYCellData,muYCellIndices,boxDim = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
    
     # solve on cell
     msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter)
