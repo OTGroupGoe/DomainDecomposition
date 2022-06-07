@@ -420,9 +420,10 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     xShape = int((len(posX)**1/dim)/(2**dim))
     
     print(xShape)
-
+    
+    alphaInit = alphaInit.view((1,1,xShape,xShape))
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
-    KealphaInit = KealphaInit.view(1,1,xShape,xShape)
+    
     
     print(KealphaInit)
     
@@ -454,6 +455,8 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     # TODO: same shape as kealpha
     a = KemuX.view((1,1,xShape,xShape))
     b = KemuY.view((1,1,boxDim[0],boxDim[1]))
+    
+    print (a)
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
