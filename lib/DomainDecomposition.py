@@ -417,7 +417,7 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     KemuY = torch.tensor(subMuY).cuda()
     dim = posX.shape[1]
     
-    xShape = int(len((posX)**1/dim)/(2**dim))
+    xShape = int((len(posX)**1/dim)/(2**dim))
     
     print(xShape)
     alphaInit = np.reshape(alphaInit,(1,1,xShape,xShape))
