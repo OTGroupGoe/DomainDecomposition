@@ -403,6 +403,7 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
+    print(subY)
      # Y data: extract
     subPosY=posY[subY].copy()
     subRhoY=rhoY[subY].copy()
@@ -482,6 +483,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     KerhoX = torch.tensor(rhoX).cuda()
     dim = posX.shape[1]
 
+    print(subY)
     # Y data: extract
     subPosY=posY[subY].copy()
     subRhoY=rhoY[subY].copy()
