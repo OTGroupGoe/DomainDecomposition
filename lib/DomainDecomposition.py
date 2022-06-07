@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 import torch
-import geomloss@softmin-grid
+import geomloss
 np.set_printoptions(threshold=10000)
 from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
