@@ -5,6 +5,7 @@ import geomloss
 np.set_printoptions(threshold=10000)
 from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
+from geomloss import sinkhorn_divergence_two_grids
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 from .CPPSinkhorn import CPPSinkhorn as CPPSinkhorn
