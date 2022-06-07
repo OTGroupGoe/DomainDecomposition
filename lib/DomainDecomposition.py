@@ -411,7 +411,7 @@ def DomDecIteration_KeOpsGrid(\
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
 # muY is added ... check the call
-def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None):
+def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0]):
     
     KeposX = torch.tensor(posX).cuda()
     KemuX = torch.tensor(muX).cuda()
