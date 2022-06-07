@@ -438,12 +438,14 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
         effectiveError=SinkhornError
 
     #TODO generalize this
-    dx =  (len(posX)**1/dim)/2
+    dx = posX[0,1] - posX[0,0] # TODO: only for posX ~ [0 0; 1 0; 0 1; 1 1]
+    # dx =  (len(posX)**1/dim)/2
     # ----------------
     # With new softmin-grid
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
-    a = KemuX.view((1,1,8, 8))
+    # TODO: same shape as kealpha
+    a = KemuX.view((1,1,8,8))
     b = KemuY.view((1,1,boxDim[0],boxDim[1]))
 
     #b = b[:,:,:new_N//2,:new_N//2]
