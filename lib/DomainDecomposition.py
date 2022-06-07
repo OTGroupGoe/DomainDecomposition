@@ -417,6 +417,8 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     KemuY = torch.tensor(subMuY).cuda()
     dim = posX.shape[1]
     
+    xShape = len(posX)**1/dim
+    alphaInit = reshape(alphaInit,(1,1,xShape,xShape))
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
      # Y data: extract
@@ -445,7 +447,7 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
     # TODO: same shape as kealpha
-    a = KemuX.view((1,1,8,8))
+    a = KemuX.view((1,1,xShape,xShape))
     b = KemuY.view((1,1,boxDim[0],boxDim[1]))
 
     #b = b[:,:,:new_N//2,:new_N//2]
@@ -516,6 +518,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
     # This is just a quick fix of converting the initial alphas to Tensor Data
     # TODO transform the basic data in Tenssor form
+
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
     if SinkhornErrorRel:
