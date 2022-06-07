@@ -227,7 +227,7 @@ def Iterate(\
             for jsub,j in enumerate(partitionDataCompCells[i]):
                 muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
                 muYAtomicIndicesList[j]=muYCellIndices.copy()
-    else:
+    elif keops == 2:
         for i in range(nCells):
             if(i%8==0):
                 print(i)
