@@ -378,6 +378,7 @@ def DomDecIteration_KeOpsGrid(\
     #convert to bounding Box 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
         muYCellData,muYCellIndices,boxDim = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
+    print("box")
     print(muYCellIndices)
    
     # solve on cell
@@ -404,6 +405,7 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
+    print("subY")
     print(subY)
      # Y data: extract
     subPosY=posY[subY].copy()
