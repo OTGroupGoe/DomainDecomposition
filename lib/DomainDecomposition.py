@@ -441,6 +441,9 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     else:
         effectiveError=SinkhornError
 
+    #TODO generalize this
+    dx =  (len(posX)**1/dim)/2
+        
     # ----------------
     # With new softmin-grid
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
