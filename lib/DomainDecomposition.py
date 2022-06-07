@@ -1227,7 +1227,7 @@ def bounding_Box_2D(data,index,matrix_size):
 
   box_data = box_data.flatten()
 
-  return box_data,box_index,(box_width,box_hight)
+  return box_data,box_index,[box_width,box_hight]
         
         
         
