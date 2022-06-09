@@ -440,6 +440,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
 
+    print(KeposX)
+    print(KesubPosY)
+
     blur = np.sqrt(eps/2)
     if SinkhornErrorRel:
         effectiveError=SinkhornError*np.sum(muX)
