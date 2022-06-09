@@ -444,7 +444,7 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
         effectiveError=SinkhornError
 
     #TODO generalize this
-    dx = posX[0,1] - posX[0,0] # TODO: only for posX ~ [0 0; 1 0; 0 1; 1 1]
+    dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 1 0; 0 1; 1 1]
     # dx =  (len(posX)**1/dim)/2
     # ----------------
     # With new softmin-grid
