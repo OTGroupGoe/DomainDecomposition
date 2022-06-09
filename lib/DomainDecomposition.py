@@ -411,8 +411,10 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 #     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
 # muY is added ... check the call
-def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0]):
+def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = None):
     
+    assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
+
     KeposX = torch.tensor(posX).cuda()
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
@@ -510,7 +512,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
 # copies data (alphaInit, muX) to slices of (B,1,BoxDim[0], BoxDim[1]) tensors. 
 # runs the geomloss gridded sinkhorn, and then unwraps the results. 
 
-def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None):
+def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim=None):
     
     # X data to GPU
     KeposX = torch.tensor(posX).cuda()
@@ -625,7 +627,7 @@ def DomDecIteration_KeOps(\
         muYCellData,muYCellIndices,boxDim = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
    
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,boxDim=boxDim)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
