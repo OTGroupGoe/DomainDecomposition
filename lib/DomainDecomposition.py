@@ -208,7 +208,7 @@ def Iterate(\
         keops = 1
         SolveOnCell = SolveOnCellKeops
     elif SinkhornSubSolver == "SolveOnCellKeopsGrid":
-        keops = 2
+        keops = 1
         SolveOnCell = SolveOnCellKeopsGrid
     else:
         SolveOnCell=SinkhornSubSolver    
@@ -229,22 +229,22 @@ def Iterate(\
             for jsub,j in enumerate(partitionDataCompCells[i]):
                 muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
                 muYAtomicIndicesList[j]=muYCellIndices.copy()
-    elif keops == 2:
-        for i in range(nCells):
-            if(i%8==0):
-                print(i)
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOpsGrid(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
-                    muXList[i],posXList[i],alphaList[i],\
-                    [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
-                    [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-                    partitionDataCompCellIndices[i], SinkhornMaxIter,\
-                    BoundingBox)
-            alphaList[i]=resultAlpha
-            betaDataList[i]=resultBeta
-            betaIndexList[i]=muYCellIndices.copy()
-            for jsub,j in enumerate(partitionDataCompCells[i]):
-                muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
-                muYAtomicIndicesList[j]=muYCellIndices.copy()
+    # elif keops == 2:
+    #     for i in range(nCells):
+    #         if(i%8==0):
+    #             print(i)
+    #         resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOpsGrid(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
+    #                 muXList[i],posXList[i],alphaList[i],\
+    #                 [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
+    #                 [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
+    #                 partitionDataCompCellIndices[i], SinkhornMaxIter,\
+    #                 BoundingBox)
+    #         alphaList[i]=resultAlpha
+    #         betaDataList[i]=resultBeta
+    #         betaIndexList[i]=muYCellIndices.copy()
+    #         for jsub,j in enumerate(partitionDataCompCells[i]):
+    #             muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
+    #             muYAtomicIndicesList[j]=muYCellIndices.copy()
 
     else:
         for i in range(nCells):
