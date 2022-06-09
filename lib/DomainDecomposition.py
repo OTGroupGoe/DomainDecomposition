@@ -415,17 +415,22 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
+    dim = posX.shape[1]
+    cellsize = int(posX.shape[0]**(1/dim) / 2)
     KeposX = torch.tensor(posX - posX[0,:]).cuda()
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(subMuY).cuda()
-    dim = posX.shape[1]
     
     # TODO: this assumes that all cells have shape (2*cellsize, 2*cellsize,...)
-    cellsize = int(posX.shape[0]**(1/dim) / 2)
 
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
-    KealphaInit = KealphaInit.view((1,1,2*cellsize,2*cellsize))
+    assert dim == 2, "Not implemented for dimension other than 2"
+    # Dirty fix for "aggregation" of basic cells
+    # TODO: think carefully how to reimplement this for the batch dimension!
+    KeposX = KeposX.view(2, 2, cellsize, cellsize, 2).permute((0,2,1,3,4)).view(-1,2)
+    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).view(-1)
+    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).view(1,1, 2*cellsize, 2*cellsize)
     
      # Y data: extract
     subPosY=posY[subY].copy()
@@ -450,7 +455,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
         effectiveError=SinkhornError
 
     #TODO generalize this
-    dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 1 0; 0 1; 1 1]
+    dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
     # dx =  (len(posX)**1/dim)/2
     # ----------------
     # With new softmin-grid
@@ -493,8 +498,14 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY) 
     # beta[KesubMuYEff == 0] = -torch.inf
 
+    # Undo the dirty fix for "aggregation" of basic cells
+    # TODO: think carefully how to reimplement this for the batch dimension!
+    KeposX = KeposX.view(2, cellsize, 2, cellsize, 2).permute((0,2,1,3,4)).view(-1,2)
+    KemuX = KemuX.view(2, cellsize, 2, cellsize).permute((0,2,1,3)).view(-1)
+    KealphaInit = KealphaInit.view(2,cellsize,2,cellsize).permute((0,2,1,3)).view(1,1, 2*cellsize, 2*cellsize)
+
     # Get transport plan
-    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
+    P = torch.exp((alpha.view(-1,1) + beta.view(1,-1) - 0.5*torch.sum((KeposX.view(-1, 1, dim) - KesubPosY.view(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.view(-1,1)*KesubRhoY.view(1,-1)
 
     # Truncate plan
     P[P<YThresh] = 0
