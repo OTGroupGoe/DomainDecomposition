@@ -420,13 +420,9 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     dim = posX.shape[1]
     
     xShape = int((len(posX)**1/dim)/(2**dim))
-    
-    print(xShape)
 
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     KealphaInit = KealphaInit.view((1,1,xShape,xShape))
-    
-    print(KealphaInit)
     
      # Y data: extract
     subPosY=posY[subY].copy()
@@ -457,7 +453,8 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     a = KemuX.view((1,1,xShape,xShape)) # TODO, future: when doing batch, first dimension goes to B
     b = KemuY.view((1,1,boxDim[0],boxDim[1])) # TODO: same here
     # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
-    print (a)
+    
+    KesubMuYEff = KesubMuYEff.view((1,1,boxDim[0],boxDim[1]))
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
