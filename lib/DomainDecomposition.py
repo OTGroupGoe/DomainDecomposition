@@ -183,6 +183,8 @@ def GetPartitionData(atomicCells,metaCells):
 #                    subIndices=muYCell.indices,subShape=muY.shape[0])
 
 
+# TODO: BatchIterate function considers several cell subproblems at once, 
+# wraps them into a list and sends them to BatchDomDecIterationKeopsGrid
 # serial implementation of one domdec half-iteration
 def Iterate(\
         muY,posY,eps,\
@@ -502,6 +504,10 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     beta = 2*beta
 
     return msg, alpha, beta, pi 
+
+# TODO: BatchDomDecIterationKeopsGrid computes a bounding box that holds all the Y data
+# copies data (alphaInit, muX) to slices of (B,1,BoxDim[0], BoxDim[1]) tensors. 
+# runs the geomloss gridded sinkhorn, and then unwraps the results. 
 
 def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None):
     
