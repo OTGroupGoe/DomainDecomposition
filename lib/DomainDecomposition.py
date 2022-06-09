@@ -433,7 +433,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     
     # Why? subMuY should be already normalized!
     subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
-    subMuYEff = subMuYEff + 1E-30
+    # subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
     KesubPosY = torch.tensor(subPosY).cuda()
@@ -448,6 +448,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
 
     #TODO generalize this
     dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 1 0; 0 1; 1 1]
+    print(dx)
     # dx =  (len(posX)**1/dim)/2
     # ----------------
     # With new softmin-grid
@@ -487,7 +488,8 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
     
-    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY+ 1E-30) 
+    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY) 
+    # beta[KesubMuYEff == 0] = -torch.inf
 
     # Get transport plan
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
