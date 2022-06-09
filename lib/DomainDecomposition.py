@@ -415,9 +415,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
-    KeposX = torch.tensor(posX - posX[:,[0]]).cuda()
+    KeposX = torch.tensor(posX - posX[0,:]).cuda()
     KemuX = torch.tensor(muX).cuda()
-    KeposY = torch.tensor(posY - posY[:,[0]]).cuda()
+    KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(subMuY).cuda()
     dim = posX.shape[1]
     
@@ -436,7 +436,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
-    KesubPosY = torch.tensor(subPosY).cuda()
+    KesubPosY = torch.tensor(subPosY - subPosY[0,:]).cuda()
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
 
