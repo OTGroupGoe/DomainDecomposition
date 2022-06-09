@@ -622,7 +622,8 @@ def DomDecIteration_KeOps(\
     #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
     #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
 
-    #convert to bounding Box 
+    #convert to bounding Box
+    boxDim = None 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
         muYCellData,muYCellIndices,boxDim = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
    
