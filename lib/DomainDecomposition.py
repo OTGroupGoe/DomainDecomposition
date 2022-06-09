@@ -415,9 +415,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
-    KeposX = torch.tensor(posX).cuda()
+    KeposX = torch.tensor(posX - posX[:,[0]]).cuda()
     KemuX = torch.tensor(muX).cuda()
-    KeposY = torch.tensor(posY).cuda()
+    KeposY = torch.tensor(posY - posY[:,[0]]).cuda()
     KemuY = torch.tensor(subMuY).cuda()
     dim = posX.shape[1]
     
@@ -448,7 +448,6 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
 
     #TODO generalize this
     dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 1 0; 0 1; 1 1]
-    print(dx)
     # dx =  (len(posX)**1/dim)/2
     # ----------------
     # With new softmin-grid
