@@ -419,7 +419,6 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     KemuY = torch.tensor(subMuY).cuda()
     dim = posX.shape[1]
     
-    #xShape = int((len(posX)**1/dim)/(2**dim))
     # TODO: this assumes that all cells have shape (2*cellsize, 2*cellsize,...)
     cellsize = int(posX.shape[0]**(1/dim) / 2)
 
@@ -453,7 +452,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
     # TODO: same shape as kealpha
-    a = KemuX.view((1,1,2*cellsize,xShape)) # TODO, future: when doing batch, first dimension goes to B
+    a = KemuX.view((1,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
     b = KemuY.view((1,1,boxDim[0],boxDim[1])) # TODO: same here
     # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
     
