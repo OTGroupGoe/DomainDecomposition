@@ -445,8 +445,9 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
     # TODO: same shape as kealpha
-    a = KemuX.view((1,1,8,8))
-    b = KemuY.view((1,1,boxDim[0],boxDim[1]))
+    a = KemuX.view((1,1,8,8)) # TODO, future: when doing batch, first dimension goes to B
+    b = KemuY.view((1,1,boxDim[0],boxDim[1])) # TODO: same here
+    # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
