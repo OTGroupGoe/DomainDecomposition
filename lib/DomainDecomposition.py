@@ -445,9 +445,6 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
 
-    print(KeposX)
-    print(KesubPosY)
-
     blur = np.sqrt(eps/2)
     if SinkhornErrorRel:
         effectiveError=SinkhornError*np.sum(muX)
@@ -535,7 +532,6 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     KerhoX = torch.tensor(rhoX).cuda()
     dim = posX.shape[1]
 
-    print(subY)
     # Y data: extract
     subPosY=posY[subY].copy()
     subRhoY=rhoY[subY].copy()
