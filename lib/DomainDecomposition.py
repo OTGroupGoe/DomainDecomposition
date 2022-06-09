@@ -484,6 +484,8 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
+    print(beta)
+    print((blur**2)*torch.log(KesubMuYEff/KesubRhoY))
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY)
 
     # Get transport plan
