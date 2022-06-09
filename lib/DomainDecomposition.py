@@ -428,9 +428,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     assert dim == 2, "Not implemented for dimension other than 2"
     # Dirty fix for "aggregation" of basic cells
     # TODO: think carefully how to reimplement this for the batch dimension!
-    KeposX = KeposX.view(2, 2, cellsize, cellsize, 2).permute((0,2,1,3,4)).view(-1,2)
-    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).view(-1)
-    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).view(1,1, 2*cellsize, 2*cellsize)
+    KeposX = KeposX.view(2, 2, cellsize, cellsize, 2).permute((0,2,1,3,4)).reshape(-1,2) # here a view is not possible in conjuction with the permute
+    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).reshape(-1)
+    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).reshape(1,1, 2*cellsize, 2*cellsize)
     
      # Y data: extract
     subPosY=posY[subY].copy()
@@ -500,9 +500,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
 
     # Undo the dirty fix for "aggregation" of basic cells
     # TODO: think carefully how to reimplement this for the batch dimension!
-    KeposX = KeposX.view(2, cellsize, 2, cellsize, 2).permute((0,2,1,3,4)).view(-1,2)
-    KemuX = KemuX.view(2, cellsize, 2, cellsize).permute((0,2,1,3)).view(-1)
-    KealphaInit = KealphaInit.view(2,cellsize,2,cellsize).permute((0,2,1,3)).view(1,1, 2*cellsize, 2*cellsize)
+    KeposX = KeposX.view(2, cellsize, 2, cellsize, 2).permute((0,2,1,3,4)).reshape(-1,2)
+    KemuX = KemuX.view(2, cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
+    KealphaInit = KealphaInit.view(2,cellsize,2,cellsize).permute((0,2,1,3)).reshape(1,1, 2*cellsize, 2*cellsize)
 
     # Get transport plan
     P = torch.exp((alpha.view(-1,1) + beta.view(1,-1) - 0.5*torch.sum((KeposX.view(-1, 1, dim) - KesubPosY.view(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.view(-1,1)*KesubRhoY.view(1,-1)
