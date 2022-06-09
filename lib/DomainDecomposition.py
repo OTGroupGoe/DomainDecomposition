@@ -504,7 +504,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     KemuX = KemuX.view(2, cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
 
     # Get transport plan
-    P = torch.exp((alpha.reshape(-1,1) + beta.view(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.view(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.view(1,-1)
+    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
     # Truncate plan
     P[P<YThresh] = 0
