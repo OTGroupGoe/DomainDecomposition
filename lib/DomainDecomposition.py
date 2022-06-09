@@ -455,6 +455,7 @@ def SolveOnCellKeopsGrid(muX,muY,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,S
     # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
     
     KesubMuYEff = KesubMuYEff.view((1,1,boxDim[0],boxDim[1]))
+    KesubRhoY = KesubRhoY.view((1,1,boxDim[0],boxDim[1]))
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
