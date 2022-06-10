@@ -445,8 +445,11 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
-    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
+    #offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
+    #offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
+
+    offset_alpha = 0 
+    offset_beta = 0
 
     KealphaInit = KealphaInit + offset_alpha
 
