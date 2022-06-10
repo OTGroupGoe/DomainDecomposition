@@ -505,6 +505,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # KesubMuYEff but we want to change it to KesubRhoY
     
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY) 
+    beta = beta.view(-1)
 
     # Undo the dirty fix for "aggregation" of basic cells
     # TODO: think carefully how to reimplement this for the batch dimension!
