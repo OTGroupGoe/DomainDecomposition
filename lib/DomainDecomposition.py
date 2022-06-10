@@ -437,7 +437,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
-    offset_y = torch.tensor(posY[0,:]).cuda()
+    offset_y = torch.tensor(subPosY[0,:]).cuda()
     KesubPosY = torch.tensor(subPosY).cuda() - offset_y
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
