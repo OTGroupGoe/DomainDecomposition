@@ -417,7 +417,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
 
     dim = posX.shape[1]
     cellsize = int(posX.shape[0]**(1/dim) / 2)
-    KeposX = torch.tensor(posX - posX[0,:]).cuda()
+
+    offset_x = torch.tensor(posX[0,:]).cuda()
+    KeposX = torch.tensor(posX).cuda() - offset_x
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(subMuY).cuda()
@@ -425,12 +427,6 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # TODO: this assumes that all cells have shape (2*cellsize, 2*cellsize,...)
 
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
-    assert dim == 2, "Not implemented for dimension other than 2"
-    # Dirty fix for "aggregation" of basic cells
-    # TODO: think carefully how to reimplement this for the batch dimension!
-    KeposX = KeposX.view(2, 2, cellsize, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim) # here a view is not possible in conjuction with the permute
-    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).reshape(-1)
-    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).reshape(1,1, 2*cellsize, 2*cellsize)
     
      # Y data: extract
     subPosY=posY[subY].copy()
@@ -441,9 +437,25 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
-    KesubPosY = torch.tensor(subPosY - subPosY[0,:]).cuda()
+    offset_y = torch.tensor(posY[0,:]).cuda()
+    KesubPosY = torch.tensor(subPosY).cuda() - offset_y
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
+
+    # Offsets in duals
+    # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
+    # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
+    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
+    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
+
+    KealphaInit = KealphaInit + offset_alpha
+
+    assert dim == 2, "Not implemented for dimension other than 2"
+    # Dirty fix for "aggregation" of basic cells
+    # TODO: think carefully how to reimplement this for the batch dimension!
+    KeposX = KeposX.view(2, 2, cellsize, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim) # here a view is not possible in conjuction with the permute
+    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).reshape(-1)
+    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).reshape(1, 1, 2*cellsize, 2*cellsize)
 
     blur = np.sqrt(eps/2)
     if SinkhornErrorRel:
@@ -493,14 +505,13 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # KesubMuYEff but we want to change it to KesubRhoY
     
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY) 
-    # beta[KesubMuYEff == 0] = -torch.inf
 
     # Undo the dirty fix for "aggregation" of basic cells
     # TODO: think carefully how to reimplement this for the batch dimension!
     KeposX = KeposX.view(2, cellsize, 2, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim)
     KemuX = KemuX.view(2, cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
     alpha = alpha.view(2,cellsize, 2, cellsize).permute((0,2,1,3)).reshape(1,1, 2*cellsize, 2*cellsize)
-    
+
     # Get transport plan
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
@@ -510,13 +521,19 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     V = P[I,J]
     pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
 
+    # Undo offsets, recall:
+    # alpha_domdec = 2*alpha_geomloss - 2<x, offset_x - offset_y>
+    # beta_domdec = 2*beta_geomloss - 2<x, offset_y - offset_x> + (offset_x - offset_y)**2
+    alpha = 2*alpha - 2*offset_alpha
+    beta = 2*beta - 2*offset_beta + torch.sum((offset_x - offset_y)**2)
+
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
     #print(alpha)
     beta = beta.cpu().numpy().ravel()
-    # Multiply duals by 2 to recover behavior for cost |x-y|^2
-    alpha = 2*alpha
-    beta = 2*beta
+    # Multiply duals by 2 to recover behavior for cost |x-y|^2 # This is done already a bit above!
+    #alpha = 2*alpha
+    #beta = 2*beta
 
     return msg, alpha, beta, pi 
 
