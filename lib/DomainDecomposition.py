@@ -205,8 +205,8 @@ def BatchIterate(\
                 print(i)
             resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
                     muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
-                    [(muYAtomicDataList[k][j] for j in partitionDataCompCellsBatch[i][k]) for k in BatchSize],\
-                    [(muYAtomicIndicesList[k][j] for j in partitionDataCompCellsBatch[i][k]) for k in BatchSize],\
+                    [(muYAtomicDataList[k][j] for j in partitionDataCompCellsBatch[i][k]) for k in range(BatchSize)],\
+                    [(muYAtomicIndicesList[k][j] for j in partitionDataCompCellsBatch[i][k]) for k in range(BatchSize)],\
                     partitionDataCompCellIndicesBatch[i], SinkhornMaxIter,\
                     BatchSize)
             # Extract Results from Batch
@@ -542,7 +542,7 @@ def BatchSolveOnCell_KeopsGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,Si
     b = torch.zeros(BatchSize,1,boxDim[0],boxDim[1])
     alpha = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
 
-    for i in BatchSize:
+    for i in range(BatchSize):
        a[i,1] = KemuX[i]
        b[i,1] = KemuY[i]
        alpha[i,1] = KealphaInit[i]
