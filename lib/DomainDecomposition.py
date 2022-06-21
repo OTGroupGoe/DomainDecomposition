@@ -191,12 +191,14 @@ def BatchIterate(\
         SinkhornErrorRel=False, SinkhornMaxIter = None,\
         BoundingBox=False, BatchSize = 1):
 
+    cellSize = len(partitionDataCompCells[0])
+    dim = len(partitionDataCompCells[0][0])
     nBatch=len(muXList)%BatchSize
-    muXListBatch = np.reshape(muXList,(nBatch,BatchSize,len(muXList[0])))
-    posXListBatch = np.reshape(posXList,(nBatch,BatchSize,len(posXList[0])))
-    alphaListBatch = np.reshape(alphaList,(nBatch,BatchSize,len(alphaList[0])))
-    partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(nBatch,BatchSize,len(partitionDataCompCellIndices[0])))
-    partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(nBatch,BatchSize,len(partitionDataCompCells[0])))
+    muXListBatch = np.reshape(muXList,(nBatch,BatchSize,cellSize,dim)).tolist()
+    posXListBatch = np.reshape(posXList,(nBatch,BatchSize,cellSize,dim)).tolist()
+    alphaListBatch = np.reshape(alphaList,(nBatch,BatchSize,cellSize,dim)).tolist()
+    partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(nBatch,BatchSize,cellSize,dim)).tolist()
+    partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(nBatch,BatchSize,cellSize,dim)).tolist()
 
     for i in range(nBatch):
             if(i%8==0):
@@ -207,13 +209,14 @@ def BatchIterate(\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i]],\
                     partitionDataCompCellIndicesBatch[i], SinkhornMaxIter,\
                     BoundingBox,BatchSize)
-            #TODO extrakt results from Batch
-            alphaList[i]=resultAlpha
-            betaDataList[i]=resultBeta
-            betaIndexList[i]=muYCellIndices.copy()
-            for jsub,j in enumerate(partitionDataCompCells[i]):
-                muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
-                muYAtomicIndicesList[j]=muYCellIndices.copy()
+            # Extract Results from Batch
+            for k in BatchSize:
+                alphaList[i*BatchSize+k]=resultAlpha[k]
+                betaDataList[i*BatchSize+k]=resultBeta[k]
+                betaIndexList[i*BatchSize+k]=muYCellIndices.copy()[k]
+                for jsub,j in enumerate(partitionDataCompCells[i*BatchSize+k]):
+                    muYAtomicDataList[j]=resultMuYAtomicDataList[k][jsub]
+                    muYAtomicIndicesList[j]=muYCellIndices.copy()[k]
 
 
 # TODO: BatchIterate function considers several cell subproblems at once, 
@@ -443,30 +446,40 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
 #     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
-def BatchDomDecIteration_KeOpsGrid(\
-        SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
+def DomDecIteration_KeOpsBatch(\
+        SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
         SinkhornMaxIter, BatchSize):
 
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
     for x,y in zip(muYAtomicListData,muYAtomicListIndices):
         arrayAdder.add(x,y)
+
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
 
-    muYCellData,muYCellIndices,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape)
+    # convert to bounding Box 
+    # Replacing original muYCellData and muYCellIndices
+    muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
+   
 
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim,BatchSize=BatchSize)
-
+    msg,resultAlpha,resultBeta,pi=SolveOnCell_KeopsBatchGrid(muXCell,muYBatch,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim)
+    
+    # extract new atomic muY
     resultMuYAtomicDataList=[\
             Common.GetPartialYMarginal(pi,range(*indices))
             for indices in partitionDataCompCellIndices
             ]
+    
+            
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
-def SolveOnCellKeopsBatchGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
-    
+def SolveOnCell_KeopsBatchGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
+
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
+
+    subMuY = np.toArray(muYBatch).T[0].tolist()
+    subY = np.toArray(muYBatch).T[1].tolist()
 
     dim = posX.shape[1]
     cellsize = int(posX.shape[0]**(1/dim) / 2)
@@ -504,9 +517,9 @@ def SolveOnCellKeopsBatchGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,
     assert dim == 2, "Not implemented for dimension other than 2"
     # Dirty fix for "aggregation" of basic cells
     # TODO: think carefully how to reimplement this for the batch dimension!
-    KeposX = KeposX.view(2, 2, cellsize, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim) # here a view is not possible in conjuction with the permute
-    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).reshape(-1)
-    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).reshape(1, 1, 2*cellsize, 2*cellsize)
+    KeposX = KeposX.view(BatchSize,2, 2, cellsize, cellsize, dim).permute((0,1,3,2,4,5)).reshape(BatchSize,-1,dim) # here a view is not possible in conjuction with the permute
+    KemuX = KemuX.view(BatchSize,2, 2, cellsize, cellsize).permute((0,1,3,2,4)).reshape(BatchSize,-1)
+    KealphaInit = KealphaInit.view(BatchSize,2,2,cellsize,cellsize).permute((0,1,3,2,4)).reshape(BatchSize,2*cellsize, 2*cellsize)
 
     blur = np.sqrt(eps/2)
     if SinkhornErrorRel:
@@ -522,9 +535,19 @@ def SolveOnCellKeopsBatchGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
     # TODO: same shape as kealpha
-    a = KemuX.view((1,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
-    b = KemuY.view((1,1,boxDim[0],boxDim[1])) # TODO: same here
+    # a = KemuX.view((1,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
+    # b = KemuY.view((1,1,boxDim[0],boxDim[1])) # TODO: same here
+
+    a = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
+    b = torch.zeros(BatchSize,1,boxDim[0],boxDim[1])
+    alpha = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
+
+    for i in BatchSize:
+       a[i,1] = KemuX[i]
+       b[i,1] = KemuY[i]
+       alpha[i,1] = KealphaInit[i]
     # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
+    # (ok, why is this necessary?)
     
     KesubMuYEff = KesubMuYEff.view((BatchSize,1,boxDim[0],boxDim[1]))
     KesubRhoY = KesubRhoY.view((BatchSize,1,boxDim[0],boxDim[1]))
@@ -558,7 +581,8 @@ def SolveOnCellKeopsBatchGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY+ 1E-30) 
 
     # Get transport plan
-    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
+    # no need to 
+    P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
 
     # Truncate plan
     P[P<YThresh] = 0
@@ -574,7 +598,8 @@ def SolveOnCellKeopsBatchGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,
     alpha = 2*alpha
     beta = 2*beta
 
-    return
+    return msg, alpha, beta, pi 
+
 
 # muY is added ... check the call
 def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = None):
