@@ -453,7 +453,8 @@ def BatchDomDecIteration_KeOpsGrid(\
 
     
     
-    
+    muYCellData = []
+    muYCellIndices = []
     for i in range(BatchSize):
         arrayAdder=LogSinkhorn.TSparseArrayAdder()
         for x,y in zip(muYAtomicListData[i],muYAtomicListIndices[i]):
