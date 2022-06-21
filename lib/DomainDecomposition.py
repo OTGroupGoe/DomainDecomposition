@@ -203,7 +203,7 @@ def BatchIterate(\
     for i in range(nBatch):
             if(i%8==0):
                 print(i)
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
+            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
                     muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
                     [muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i]],\
