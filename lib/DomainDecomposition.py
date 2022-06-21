@@ -197,8 +197,8 @@ def BatchIterate(\
     muXListBatch = np.reshape(muXList,(nBatch,BatchSize,len(muXList[0]))).tolist()
     posXListBatch = np.reshape(posXList,(nBatch,BatchSize,len(muXList[0]),dim)).tolist()
     alphaListBatch = np.reshape(alphaList,(nBatch,BatchSize,len(muXList[0]))).tolist()
-    partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(nBatch,BatchSize,cellSize)).tolist()
-    partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(nBatch,BatchSize,cellSize,dim)).tolist()
+    partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(nBatch,BatchSize,cellSize,dim))).tolist()
+    partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(nBatch,BatchSize,cellSize)).tolist()
 
     for i in range(nBatch):
             if(i%8==0):
