@@ -455,7 +455,7 @@ def BatchDomDecIteration_KeOpsGrid(\
 
     muYCellData,muYCellIndices,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape)
 
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim,BatchSize)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim,BatchSize=BatchSize)
 
     resultMuYAtomicDataList=[\
             Common.GetPartialYMarginal(pi,range(*indices))
