@@ -1554,4 +1554,4 @@ def Batch_Bounding_Box_2D(data,index,matrix_size):
     
     # fill and allign all the Boxes
     
-    return list(map(fill_box_2D,list0,[min_dist_x]*len(list0),[min_dist_y]*len(list0),data,[(temp[2].max(), temp[3].max())]*len(list0)),(maxX,maxY))
+    return list(map(fill_box_2D,list0,[min_dist_x]*len(list0),[min_dist_y]*len(list0),data,[(temp[2].max(), temp[3].max())]*len(list0))),(maxX,maxY)
