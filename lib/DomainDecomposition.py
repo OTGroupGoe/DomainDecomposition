@@ -189,7 +189,7 @@ def BatchIterate(\
         muXList,posXList,alphaList,betaDataList,betaIndexList,shape,\
         SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4,\
         SinkhornErrorRel=False, SinkhornMaxIter = None,\
-        BoundingBox=False, BatchSize = 1):
+        BatchSize = 1):
 
     cellSize = len(partitionDataCompCellIndices[0])
     dim = len(partitionDataCompCellIndices[0][0])
@@ -208,7 +208,7 @@ def BatchIterate(\
                     [muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i]],\
                     partitionDataCompCellIndicesBatch[i], SinkhornMaxIter,\
-                    BoundingBox,BatchSize)
+                    BatchSize)
             # Extract Results from Batch
             for k in BatchSize:
                 alphaList[i*BatchSize+k]=resultAlpha[k]
@@ -446,7 +446,7 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
 #     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
-def DomDecIteration_KeOpsBatch(\
+def BatchDomDecIteration_KeOpsGrid(\
         SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
         SinkhornMaxIter, BatchSize):
@@ -462,7 +462,7 @@ def DomDecIteration_KeOpsBatch(\
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
    
 
-    msg,resultAlpha,resultBeta,pi=SolveOnCell_KeopsBatchGrid(muXCell,muYBatch,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim)
+    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,muYBatch,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
@@ -474,7 +474,7 @@ def DomDecIteration_KeOpsBatch(\
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
-def SolveOnCell_KeopsBatchGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
+def BatchSolveOnCell_KeopsGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
 
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
