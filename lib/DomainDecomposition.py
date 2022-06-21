@@ -191,8 +191,8 @@ def BatchIterate(\
         SinkhornErrorRel=False, SinkhornMaxIter = None,\
         BoundingBox=False, BatchSize = 1):
 
-    cellSize = len(partitionDataCompCells[0])
-    dim = len(partitionDataCompCells[0][0])
+    cellSize = len(partitionDataCompCellIndices[0])
+    dim = len(partitionDataCompCellIndices[0][0])
     nBatch=len(muXList)%BatchSize
     muXListBatch = np.reshape(muXList,(nBatch,BatchSize,cellSize,dim)).tolist()
     posXListBatch = np.reshape(posXList,(nBatch,BatchSize,cellSize,dim)).tolist()
