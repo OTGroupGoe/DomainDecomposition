@@ -194,7 +194,7 @@ def BatchIterate(\
     cellSize = len(partitionDataCompCellIndices[0])
     dim = len(partitionDataCompCellIndices[0][0])
     nBatch=len(partitionDataCompCellIndices)//BatchSize
-    muXListBatch = np.reshape(muXList,(nBatch,BatchSize,len(muXList[0]),dim)).tolist()
+    muXListBatch = np.reshape(muXList,(nBatch,BatchSize,len(muXList[0]))).tolist()
     posXListBatch = np.reshape(posXList,(nBatch,BatchSize,len(muXList[0]),dim)).tolist()
     alphaListBatch = np.reshape(alphaList,(nBatch,BatchSize,len(muXList[0]))).tolist()
     partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(nBatch,BatchSize,cellSize)).tolist()
