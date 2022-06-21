@@ -1547,9 +1547,11 @@ def Batch_Bounding_Box_2D(data,index,matrix_size):
     temp = np.array(list0,dtype=object).T
     
     # compute maximum Box
+    maxX= temp[2].max()
+    maxY= temp[3].max()
     
-    min_dist_x,min_dist_y = x_size - temp[2].max(),y_size - temp[3].max()
+    min_dist_x,min_dist_y = x_size - maxX,y_size - maxY
     
     # fill and allign all the Boxes
     
-    return list(map(fill_box_2D,list0,[min_dist_x]*len(list0),[min_dist_y]*len(list0),data,[(temp[2].max(), temp[3].max())]*len(list0)))
+    return list(map(fill_box_2D,list0,[min_dist_x]*len(list0),[min_dist_y]*len(list0),data,[(temp[2].max(), temp[3].max())]*len(list0)),(maxX,maxY))
