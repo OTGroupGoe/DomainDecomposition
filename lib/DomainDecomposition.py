@@ -501,6 +501,10 @@ def BatchSolveOnCell_KeopsGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,Si
     subPosY=[]
     subRhoY=[]
     
+    print(subY[0])
+    print("---------")
+    print(subY)
+    
     for i in range(BatchSize):
         # Y data: extract
         subPosY.append(posY[i][subY[i]].copy())
