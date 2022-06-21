@@ -452,7 +452,7 @@ def BatchDomDecIteration_KeOpsGrid(\
         SinkhornMaxIter, BatchSize):
 
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
-    print(muYAtomicListData[i])
+    print(muYAtomicListData[0])
     print("----------------")
     print(muYAtomicListData)
     
