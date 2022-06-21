@@ -485,8 +485,8 @@ def BatchSolveOnCell_KeopsGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,Si
 
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
-    subMuY = np.toArray(muYBatch).T[0].tolist()
-    subY = np.toArray(muYBatch).T[1].tolist()
+    subMuY = np.array(muYBatch).T[0].tolist()
+    subY = np.array(muYBatch).T[1].tolist()
 
     dim = posX.shape[1]
     cellsize = int(posX.shape[0]**(1/dim) / 2)
