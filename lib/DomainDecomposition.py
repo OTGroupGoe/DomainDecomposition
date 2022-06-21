@@ -451,15 +451,17 @@ def BatchDomDecIteration_KeOpsGrid(\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
         SinkhornMaxIter, BatchSize):
 
-    arrayAdder=LogSinkhorn.TSparseArrayAdder()
-    print(muYAtomicListData[0])
-    print("----------------")
-    print(muYAtomicListData)
     
-    for x,y in zip(muYAtomicListData[i],muYAtomicListIndices[i]):
-        arrayAdder.add(x,y)
-
-    muYCellData,muYCellIndices=arrayAdder.getDataTuple()
+    
+    
+    for i in range(BatchSize):
+        arrayAdder=LogSinkhorn.TSparseArrayAdder()
+        for x,y in zip(muYAtomicListData[i],muYAtomicListIndices[i]):
+            arrayAdder.add(x,y)
+        muYCellData.append(arrayAdder.getDataTuple()[0])
+        muYCellIndices.append(arrayAdder.getDataTuple()[1])
+        
+    #muYCellData,muYCellIndices=arrayAdder.getDataTuple()
 
     # convert to bounding Box 
     # Replacing original muYCellData and muYCellIndices
