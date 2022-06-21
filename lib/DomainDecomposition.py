@@ -193,12 +193,11 @@ def BatchIterate(\
 
     cellSize = len(partitionDataCompCellIndices[0])
     dim = len(partitionDataCompCellIndices[0][0])
-    nBatch=len(partitionDataCompCellIndices)//BatchSize
-    muXListBatch = np.reshape(muXList,(nBatch,BatchSize,len(muXList[0]))).tolist()
-    posXListBatch = np.reshape(posXList,(nBatch,BatchSize,len(muXList[0]),dim)).tolist()
-    alphaListBatch = np.reshape(alphaList,(nBatch,BatchSize,len(muXList[0]))).tolist()
-    partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(nBatch,BatchSize,cellSize,dim)).tolist()
-    partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(nBatch,BatchSize,cellSize)).tolist()
+    muXListBatch = np.reshape(muXList,(-1,BatchSize,len(muXList[0]))).tolist()
+    posXListBatch = np.reshape(posXList,(-1,BatchSize,len(muXList[0]),dim)).tolist()
+    alphaListBatch = np.reshape(alphaList,(-1,BatchSize,len(muXList[0]))).tolist()
+    partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(-1,BatchSize,cellSize,dim)).tolist()
+    partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(-1,BatchSize,cellSize)).tolist()
 
     for i in range(nBatch):
             if(i%8==0):
@@ -488,8 +487,8 @@ def BatchSolveOnCell_KeopsGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,Si
     subMuY = np.array(muYBatch).T[0].tolist()
     subY = np.array(muYBatch).T[1].tolist()
 
-    dim = posX[0].shape[1]
-    cellsize = int(posX[0].shape[0]**(1/dim) / 2)
+    dim = len(posX[0][0])
+    cellsize = int(len(posX[0]**(1/dim) / 2)
     
     offset_x = torch.tensor(posX[0,0,:]).cuda()
     KeposX = torch.tensor(posX).cuda() - offset_x
