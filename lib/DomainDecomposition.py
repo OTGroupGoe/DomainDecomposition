@@ -199,7 +199,7 @@ def BatchIterate(\
     partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(-1,BatchSize,cellSize,dim)).tolist()
     partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(-1,BatchSize,cellSize)).tolist()
 
-    for i in range(nBatch):
+    for i in range(len(muXListBatch)):
             if(i%8==0):
                 print(i)
             resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
