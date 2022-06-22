@@ -190,32 +190,42 @@ def BatchIterate(\
         SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4,\
         SinkhornErrorRel=False, SinkhornMaxIter = None,\
         BatchSize = 1):
-
-    cellSize = len(partitionDataCompCellIndices[0])
-    dim = len(partitionDataCompCellIndices[0][0])
-    muXListBatch = np.reshape(muXList,(-1,BatchSize,len(muXList[0]))).tolist()
-    posXListBatch = np.reshape(posXList,(-1,BatchSize,len(muXList[0]),dim)).tolist()
-    alphaListBatch = np.reshape(alphaList,(-1,BatchSize,len(muXList[0]))).tolist()
-    partitionDataCompCellIndicesBatch = np.reshape(partitionDataCompCellIndices,(-1,BatchSize,cellSize,dim)).tolist()
-    partitionDataCompCellsBatch = np.reshape(partitionDataCompCells,(-1,BatchSize,cellSize)).tolist()
-
+    
+    NCells = len(muXList)
+    restsize = len(a)%batchsize
+    if restsize !=0:
+        b.append([a[i] for i in range(len(a)-restsize,len(a))])
+    
+    muXListBatch = [[muXList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//batchsize)]
+    posXListBatch = [[posXList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//batchsize)]
+    alphaListBatch = [[alphaList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//batchsize)]
+    partitionDataCompCellIndicesBatch = [[partitionDataCompCellIndices[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(len(a)//batchsize)]
+    partitionDataCompCellsBatch = [[partitionDataCompCells[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(len(a)//batchsize)]
+    #adding on smaller Lists if necesarry 
+    if restsize !=0:
+        muXListBatch.append([muXList[i] for i in range(NCells-restsize,NCells)])
+        posXListBatch.append([posXList[i] for i in range(NCells-restsize,NCells)])
+        alphaListBatch.append([alphaList[i] for i in range(NCells-restsize,NCells)])
+        partitionDataCompCellIndicesBatch.append([partitionDataCompCellIndices[i] for i in range(NCells-restsize,NCells)])
+        partitionDataCompCellsBatch.append([partitionDataCompCells[i] for i in range(NCells-restsize,NCells)])
+        
     for i in range(len(muXListBatch)):
-            if(i%8==0):
-                print(i)
-            resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
-                    muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
-                    [(muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(BatchSize)],\
-                    [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(BatchSize)],\
-                    partitionDataCompCellIndicesBatch[i], SinkhornMaxIter,\
-                    BatchSize)
+        currentBatch = len(muXListBatch[i])
+        print(i)
+        resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
+            muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
+            [(muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
+            [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
+            partitionDataCompCellIndicesBatch[i], SinkhornMaxIter,\
+            BatchSize)
             # Extract Results from Batch
-            for k in BatchSize:
-                alphaList[i*BatchSize+k]=resultAlpha[k]
-                betaDataList[i*BatchSize+k]=resultBeta[k]
-                betaIndexList[i*BatchSize+k]=muYCellIndices.copy()[k]
-                for jsub,j in enumerate(partitionDataCompCells[i*BatchSize+k]):
-                    muYAtomicDataList[j]=resultMuYAtomicDataList[k][jsub]
-                    muYAtomicIndicesList[j]=muYCellIndices.copy()[k]
+        for k in range(currentBatch):
+            alphaList[i*BatchSize+k]=resultAlpha[k]
+             betaDataList[i*BatchSize+k]=resultBeta[k]
+             betaIndexList[i*BatchSize+k]=muYCellIndices.copy()[k]
+             for jsub,j in enumerate(partitionDataCompCells[i*BatchSize+k]):
+                muYAtomicDataList[j]=resultMuYAtomicDataList[k][jsub]
+                muYAtomicIndicesList[j]=muYCellIndices.copy()[k]
 
 
 # TODO: BatchIterate function considers several cell subproblems at once, 
