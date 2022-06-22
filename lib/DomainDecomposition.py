@@ -564,10 +564,10 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     dx = torch.zeros(BatchSize,(2*cellsize)**2,dim)
     
     for i in range(BatchSize):
-       dx[i] = posX[i][1,1] - posX[i][0,1]
-       a[i,1] = KemuX[i]
-       b[i,1] = KemuY[i]
-       alpha[i,1] = KealphaInit[i]
+       dx[i][0] = posX[i][1,1] - posX[i][0,1]
+       a[i][0] = KemuX[i]
+       b[i][0] = KemuY[i]
+       alpha[i][0] = KealphaInit[i]
     # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
     # (ok, why is this necessary?)
     
