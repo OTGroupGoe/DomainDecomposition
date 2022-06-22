@@ -506,10 +506,6 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
-    print(subY[0])
-    print("------")
-    print(subY)   
-    
     subPosY=[]
     subRhoY=[]
 
@@ -550,7 +546,12 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         effectiveError=SinkhornError
 
  #TODO generalize this
+    print(posX[0])
+    print("------")
+    print(posX)   
+    
     dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
+    
     # dx =  (len(posX)**1/dim)/2
     # ----------------
     # With new softmin-grid
@@ -565,6 +566,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     alpha = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
 
     for i in range(BatchSize):
+       dx = posX[1,1] - posX[0,1]
        a[i,1] = KemuX[i]
        b[i,1] = KemuY[i]
        alpha[i,1] = KealphaInit[i]
