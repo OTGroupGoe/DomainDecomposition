@@ -555,19 +555,16 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
     # TODO: same shape as kealpha
-    # a = KemuX.view((1,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
-    # b = KemuY.view((1,1,boxDim[0],boxDim[1])) # TODO: same here
+    a = KemuX.view((BatchSize,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
+    b = KemuY.view((BatchSize,1,boxDim[0],boxDim[1])) # TODO: same here
 
-    a = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
-    b = torch.zeros(BatchSize,1,boxDim[0],boxDim[1])
-    alpha = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
     dx = torch.zeros(BatchSize,(2*cellsize)**2,dim)
     
     for i in range(BatchSize):
        dx[i][0] = posX[i][1,1] - posX[i][0,1]
-       a[i][0] = KemuX[i]
-       b[i][0] = KemuY[i]
-       alpha[i][0] = KealphaInit[i]
+       #a[i][0] = KemuX[i]
+       #b[i][0] = KemuY[i]
+       #alpha[i][0] = KealphaInit[i]
     # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
     # (ok, why is this necessary?)
     
