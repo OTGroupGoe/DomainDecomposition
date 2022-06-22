@@ -474,7 +474,7 @@ def BatchDomDecIteration_KeOpsGrid(\
     # convert to bounding Box 
     # Replacing original muYCellData and muYCellIndices
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
-    muYBatch = boxflat = [item for sublist in box for item in sublist]
+    muYBatch = [item for sublist in muYBatch for item in sublist]
     subMuY = muYBatch[::2]
     subY = muYBatch[1::2]
    
