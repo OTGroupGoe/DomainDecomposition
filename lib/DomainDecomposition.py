@@ -547,7 +547,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
  #TODO generalize this
     
-    #dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
+    dx = posX[0][1,1] - posX[0][0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
     
     # dx =  (len(posX)**1/dim)/2
     # ----------------
@@ -557,11 +557,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # TODO: same shape as kealpha
     a = KemuX.view((BatchSize,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
     b = KemuY.view((BatchSize,1,boxDim[0],boxDim[1])) # TODO: same here
-
-    dx = torch.zeros(BatchSize,(2*cellsize)**2,dim)
-    
-    for i in range(BatchSize):
-       dx[i][0] = posX[i][1,1] - posX[i][0,1]
+      
        #a[i][0] = KemuX[i]
        #b[i][0] = KemuY[i]
        #alpha[i][0] = KealphaInit[i]
