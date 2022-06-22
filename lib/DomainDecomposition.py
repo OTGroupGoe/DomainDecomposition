@@ -476,9 +476,12 @@ def BatchDomDecIteration_KeOpsGrid(\
     # convert to bounding Box 
     # Replacing original muYCellData and muYCellIndices
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
+    muYBatch = boxflat = [item for sublist in box for item in sublist]
+    subMuY = muYBatch[::2]
+    subY = muYBatch[1::2]
    
 
-    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,muYBatch,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim)
+    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
@@ -490,17 +493,9 @@ def BatchDomDecIteration_KeOpsGrid(\
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
-def BatchSolveOnCell_KeopsGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
+def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
 
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
-
-    print(muYBatch[1][0])
-    print("---------")
-    print(muYBatch[1])
-    
-    
-    subMuY = np.array(muYBatch).T[0].tolist()
-    subY = np.array(muYBatch).T[1].tolist()
 
     dim = len(posX[0][0])
     cellsize = int(len(posX[0])**(1/dim) / 2)
@@ -515,20 +510,14 @@ def BatchSolveOnCell_KeopsGrid(muX,muYBatch,posX,posY,rhoX,rhoY,alphaInit,eps,Si
     
     subPosY=[]
     subRhoY=[]
-    
-    print(subY[0])
-    print("---------")
-    print(subY)
-    
+
     for i in range(BatchSize):
         # Y data: extract
         subPosY.append(posY[i][subY[i]].copy())
-        subRhoY.append(rhoY[i][subY[i]].copy())
-        
-    
+        subRhoY.append(rhoY[i][subY[i]].copy())    
     
     # Why? subMuY should be already normalized!
-    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
+    #subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
     #subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
