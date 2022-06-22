@@ -635,7 +635,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     
     # TODO: this assumes that all cells have shape (2*cellsize, 2*cellsize,...)
 
-    KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
+    KealphaInit = torch.tensor(alphaInit).cuda() 
     
      # Y data: extract
     subPosY=posY[subY].copy()
@@ -652,15 +652,15 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
 
     # Offsets in duals
-    # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
-    # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
+    # alpha_domdec = 2*alpha_geomloss + 2<x', offset_x - offset_y>
+    # beta_domdec = 2*beta_geomloss + 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
     offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
     offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
 
     #offset_alpha = 0 
     #offset_beta = 0
 
-    KealphaInit = KealphaInit + offset_alpha
+    KealphaInit = KealphaInit/2 - offset_alpha
 
     assert dim == 2, "Not implemented for dimension other than 2"
     # Dirty fix for "aggregation" of basic cells
@@ -737,8 +737,8 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     # Undo offsets, recall:
     # alpha_domdec = 2*alpha_geomloss - 2<x, offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<x, offset_y - offset_x> + (offset_x - offset_y)**2
-    alpha = 2*alpha - 2*offset_alpha
-    beta = 2*beta - 2*offset_beta + torch.sum((offset_x - offset_y)**2)
+    alpha = 2*alpha + 2*offset_alpha
+    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
 
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
