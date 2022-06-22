@@ -506,6 +506,11 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
+    print(posY[0])
+    print("------")
+    print(posY)
+   
+    
     subPosY=[]
     subRhoY=[]
 
