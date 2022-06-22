@@ -479,7 +479,7 @@ def BatchDomDecIteration_KeOpsGrid(\
     subY = muYBatch[1::2]
    
 
-    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim)
+    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim, BatchSize=BatchSize)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
