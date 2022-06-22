@@ -221,9 +221,9 @@ def BatchIterate(\
             # Extract Results from Batch
         for k in range(currentBatch):
             alphaList[i*BatchSize+k]=resultAlpha[k]
-             betaDataList[i*BatchSize+k]=resultBeta[k]
-             betaIndexList[i*BatchSize+k]=muYCellIndices.copy()[k]
-             for jsub,j in enumerate(partitionDataCompCells[i*BatchSize+k]):
+            betaDataList[i*BatchSize+k]=resultBeta[k]
+            betaIndexList[i*BatchSize+k]=muYCellIndices.copy()[k]
+            for jsub,j in enumerate(partitionDataCompCells[i*BatchSize+k]):
                 muYAtomicDataList[j]=resultMuYAtomicDataList[k][jsub]
                 muYAtomicIndicesList[j]=muYCellIndices.copy()[k]
 
