@@ -546,11 +546,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         effectiveError=SinkhornError
 
  #TODO generalize this
-    print(posX[0])
-    print("------")
-    print(posX)   
     
-    dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
+    #dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
     
     # dx =  (len(posX)**1/dim)/2
     # ----------------
@@ -564,9 +561,10 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     a = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
     b = torch.zeros(BatchSize,1,boxDim[0],boxDim[1])
     alpha = torch.zeros(BatchSize,1,2*cellsize,2*cellsize)
-
+    dx = torch.zeros(BatchSize,(2*cellsize)**2,dim)
+    
     for i in range(BatchSize):
-       dx = posX[1,1] - posX[0,1]
+       dx[i] = posX[i][1,1] - posX[i][0,1]
        a[i,1] = KemuX[i]
        b[i,1] = KemuY[i]
        alpha[i,1] = KealphaInit[i]
