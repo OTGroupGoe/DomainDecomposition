@@ -515,8 +515,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     for i in range(BatchSize):
         # Y data: extract
-        subPosY.append(posY[i][subY[i]].copy())
-        subRhoY.append(rhoY[i][subY[i]].copy())    
+        subPosY.append(posY[subY[i]].copy())
+        subRhoY.append(rhoY[subY[i]].copy())    
     
     # Why? subMuY should be already normalized!
     #subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
