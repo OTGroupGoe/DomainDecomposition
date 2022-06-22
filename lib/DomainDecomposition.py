@@ -519,7 +519,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         subRhoY.append(rhoY[subY[i]].copy())    
     
     # Why? subMuY should be already normalized!
-    #subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
+    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
     #subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
