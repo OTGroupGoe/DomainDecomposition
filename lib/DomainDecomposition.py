@@ -192,13 +192,13 @@ def BatchIterate(\
         BatchSize = 1):
     
     NCells = len(muXList)
-    restsize = NCells%batchsize
+    restsize = NCells%BatchSize
     
-    muXListBatch = [[muXList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//batchsize)]
-    posXListBatch = [[posXList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//batchsize)]
-    alphaListBatch = [[alphaList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//batchsize)]
-    partitionDataCompCellIndicesBatch = [[partitionDataCompCellIndices[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(len(a)//batchsize)]
-    partitionDataCompCellsBatch = [[partitionDataCompCells[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(len(a)//batchsize)]
+    muXListBatch = [[muXList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//BatchSize)]
+    posXListBatch = [[posXList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//BatchSize)]
+    alphaListBatch = [[alphaList[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(NCells//BatchSize)]
+    partitionDataCompCellIndicesBatch = [[partitionDataCompCellIndices[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(len(a)//BatchSize)]
+    partitionDataCompCellsBatch = [[partitionDataCompCells[i] for i in range(batchsize*j,batchsize*j+batchsize)] for j in range(len(a)//BatchSize)]
     #adding on smaller Lists if necesarry 
     if restsize !=0:
         muXListBatch.append([muXList[i] for i in range(NCells-restsize,NCells)])
