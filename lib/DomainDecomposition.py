@@ -597,17 +597,17 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     # Get transport plan
     # no need to 
-    print(alpha)
+    print(alpha.size(dim=0))
     print("-----------------")
-    print(beta)
+    print(beta.size(dim=0))
     print("-----------------")
-    print(KeposX)
+    print(KeposX.size(dim=0))
     print("-----------------")
-    print(KesubPosY)
+    print(KesubPosY.size(dim=0))
     print("-----------------")
-    print(KemuX)
+    print(KemuX.size(dim=0))
     print("-----------------")
-    print(KesubRhoY)
+    print(KesubRhoY.size(dim=0))
     
     P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
 
