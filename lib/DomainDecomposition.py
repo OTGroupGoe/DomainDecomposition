@@ -613,10 +613,13 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
     
     # Truncate plan
-    P[P<YThresh] = 0
-    I, J = torch.nonzero(P, as_tuple = True)
-    V = P[I,J]
-    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
+    pi =[]
+    for i in range(BatchSize)
+        P[i][P<YThresh] = 0
+        I, J = torch.nonzero(P[i], as_tuple = True)
+        V = P[i][I,J]
+        pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
+    
 
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
@@ -739,12 +742,10 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
     # Truncate pla
-    pi =[]
-    for i in range(BatchSize)
-        P[i][P<YThresh] = 0
-        I, J = torch.nonzero(P[i], as_tuple = True)
-    V = P[i][I,J]
-    pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
+    P[P<YThresh] = 0
+    I, J = torch.nonzero(P, as_tuple = True)
+    V = P[I,J]
+    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
 
     # Undo offsets, recall:
     # alpha_domdec = 2*alpha_geomloss - 2<x, offset_x - offset_y>
