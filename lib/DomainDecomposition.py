@@ -495,8 +495,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
-    dim = len(posX[0])
-    cellsize = int(len(posX[0])**(1/dim) / 2)
+    dim = posX[0].shape[1]
+    cellsize = int(posX[0].shape[0])**(1/dim) / 2)
     
     #offset_x = torch.tensor(posX[0,0,:]).cuda()
     KeposX = torch.tensor(posX).cuda() #- offset_x
