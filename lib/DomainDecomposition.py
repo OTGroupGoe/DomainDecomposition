@@ -595,17 +595,17 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     
     #P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
-    print(alpha[0].size())
+    print(alpha.size())
     print("-------------------")
-    print(beta[0].size())
+    print(beta.size())
     print("-------------------")
-    print(KeposX[0].size())
+    print(KeposX.size())
     print("-------------------")
-    print(KesubPosY[0].size())
+    print(KesubPosY.size())
     print("-------------------")
-    print(KemuX[0].size())
+    print(KemuX.size())
     print("-------------------")
-    print(KesubRhoY[0].size())
+    print(KesubRhoY.size())
     
     P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
     
