@@ -552,7 +552,10 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # TODO: same shape as kealpha
     a = KemuX.view((BatchSize,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
     b = KemuY.view((BatchSize,1,boxDim[0],boxDim[1])) # TODO: same here
-      
+    
+    print("b")
+    print(b.size())
+    
        #a[i][0] = KemuX[i]
        #b[i][0] = KemuY[i]
        #alpha[i][0] = KealphaInit[i]
