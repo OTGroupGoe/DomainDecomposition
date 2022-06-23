@@ -614,7 +614,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     
     # Truncate plan
     pi =[]
-    for i in range(BatchSize)
+    for i in range(BatchSize):
         P[i][P<YThresh] = 0
         I, J = torch.nonzero(P[i], as_tuple = True)
         V = P[i][I,J]
