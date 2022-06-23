@@ -615,6 +615,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Truncate plan
     print("------------------- \n P")
     print(P.size())
+    print(YThresh)
     pi =[]
     for i in range(BatchSize):
         P[i][P<YThresh] = 0
