@@ -602,7 +602,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     P= []
     for i in range(BatchSize):
-        P.append[torch.exp((alpha[i].reshape(-1,1) + beta[i].reshape(1,-1) - 0.5*torch.sum((KeposX[i].reshape(-1, 1, dim) - KesubPosY[i].reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX[i].reshape(-1,1)*KesubRhoY[i].reshape(1,-1)]
+        P.append(torch.exp((alpha[i].reshape(-1,1) + beta[i].reshape(1,-1) - 0.5*torch.sum((KeposX[i].reshape(-1, 1, dim) - KesubPosY[i].reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX[i].reshape(-1,1)*KesubRhoY[i].reshape(1,-1))
 
     
     # Truncate plan
