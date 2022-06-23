@@ -506,13 +506,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
-    subPosY=[]
-    subRhoY=[]
-
-    for i in range(BatchSize):
-        # Y data: extract
-        subPosY.append(posY[subY[i]].copy())
-        subRhoY.append(rhoY[subY[i]].copy())    
+    subPosY=(posY[subY].copy())
+    subRhoY=(rhoY[subY].copy())    
     
     # Why? subMuY should be already normalized!
     subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
