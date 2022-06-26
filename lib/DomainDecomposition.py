@@ -619,6 +619,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     alpha = 2*alpha
     beta = 2*beta
 
+    print("Batch concluded")
     return msg, alpha, beta, pi 
 
 
