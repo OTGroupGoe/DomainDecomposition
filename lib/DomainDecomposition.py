@@ -492,9 +492,6 @@ def BatchDomDecIteration_KeOpsGrid(\
             Common.GetPartialYMarginal(pi[i],range(*indices))
             for indices in partitionDataCompCellIndices[i] for i in range(BatchSize)
             ]
-    
-    print(len(partitionDataCompCellIndices))
-    print(partitionDataCompCellIndices)
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
