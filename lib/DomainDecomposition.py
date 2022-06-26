@@ -471,6 +471,9 @@ def BatchDomDecIteration_KeOpsGrid(\
         
     #muYCellData,muYCellIndices=arrayAdder.getDataTuple()
 
+    print(muYCellData[0])
+    print(muYCellIndices[0])
+    
     # convert to bounding Box 
     # Replacing original muYCellData and muYCellIndices
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
@@ -478,7 +481,10 @@ def BatchDomDecIteration_KeOpsGrid(\
     subMuY = muYBatch[::2]
     subY = muYBatch[1::2]
    
-
+    print("-----------------")
+    print(subMuY[0])
+    print(subY[0])
+    
     msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim, BatchSize=BatchSize)
     
     # extract new atomic muY
