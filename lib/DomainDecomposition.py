@@ -487,7 +487,8 @@ def BatchDomDecIteration_KeOpsGrid(\
             for indices in partitionDataCompCellIndices[i] for i in range(BatchSize)
             ]
     
-    print(resultMuYAtomicDataList)
+    print(len(partitionDataCompCellIndices))
+    print(partitionDataCompCellIndices)
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
