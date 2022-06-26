@@ -215,7 +215,7 @@ def BatchIterate(\
             [(muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
             [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
             partitionDataCompCellIndicesBatch[i], SinkhornMaxIter,\
-            BatchSize)
+            currentBatch)
             # Extract Results from Batch
         for k in range(currentBatch):
             alphaList[i*BatchSize+k]=resultAlpha[k]
@@ -223,7 +223,7 @@ def BatchIterate(\
             betaIndexList[i*BatchSize+k]=muYCellIndices.copy()[k]
             for jsub,j in enumerate(partitionDataCompCells[i*BatchSize+k]):
                 muYAtomicDataList[j]=resultMuYAtomicDataList[k][jsub]
-                muYAtomicIndicesList[j]=muYCellIndices.copy()[k]
+                muYAtomicIndicesList[j]=muYCellIndices[k].copy()
 
 
 # TODO: BatchIterate function considers several cell subproblems at once, 
@@ -481,7 +481,7 @@ def BatchDomDecIteration_KeOpsGrid(\
 
     msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim, BatchSize=BatchSize)
     
-    print(len(partitionDataCompCellIndices))
+    print(pi[0])
     # extract new atomic muY
     resultMuYAtomicDataList=[\
             Common.GetPartialYMarginal(pi[i],range(*indices))
@@ -598,26 +598,11 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # no need to 
     
     #P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
-
-    print(alpha.size())
-    print("-------------------")
-    print(beta.size())
-    print("-------------------")
-    print(KeposX.size())
-    print("-------------------")
-    print(KesubPosY.size())
-    print("-------------------")
-    print(KemuX.size())
-    print("-------------------")
-    print(KesubRhoY.size())
     
     P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
     
     # Truncate plan
-    print("------------------- \n P")
-    print(P.size())
-    print(P[0].size())
-    print(YThresh)
+
     pi =[]
     for i in range(BatchSize):
         P[i][P[i]<YThresh] = 0
@@ -626,7 +611,6 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         V = P[i][I,J]
         pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
     
-
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
     #print(alpha)
