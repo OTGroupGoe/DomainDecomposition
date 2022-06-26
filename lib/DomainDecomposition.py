@@ -497,8 +497,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     dim = posX[0].shape[1]
     cellsize = int(posX[0].shape[0]**(1/dim) / 2)
     
-    #offset_x = torch.tensor(posX[0,0,:]).cuda()
-    KeposX = torch.tensor(posX).cuda() #- offset_x
+    offset_x = torch.tensor(posX[0,0,:]).cuda()
+    KeposX = torch.tensor(posX).cuda() - offset_x
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(subMuY).cuda()
@@ -513,18 +513,19 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     #subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
-    #offset_y = torch.tensor(subPosY[0,0,:]).cuda()
-    KesubPosY = torch.tensor(subPosY).cuda() #- offset_y
+    offset_y = torch.tensor(subPosY[0,0,:]).cuda()
+    KesubPosY = torch.tensor(subPosY).cuda() - offset_y
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
 
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    #offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 2).view(-1)
-    #offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(-1)
+    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
+    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
 
-    KealphaInit = KealphaInit # + offset_alpha
+
+    KealphaInit = KealphaInit + offset_alpha
 
     assert dim == 2, "Not implemented for dimension other than 2"
     # Dirty fix for "aggregation" of basic cells
@@ -609,13 +610,15 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         V = P[i][I,J]
         pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
     
+    
+    alpha = 2*alpha + 2*offset_alpha
+    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
+
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
     #print(alpha)
     beta = beta.cpu().numpy().ravel()
     # Multiply duals by 2 to recover behavior for cost |x-y|^2
-    alpha = 2*alpha
-    beta = 2*beta
 
     print("Batch concluded")
     return msg, alpha, beta, pi 
@@ -729,10 +732,6 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
 
     # Get transport plan
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
-    
-    print(P.size())
-    print(P)
-    print("---------------------")
     
     # Truncate plan
     P[P<YThresh] = 0
