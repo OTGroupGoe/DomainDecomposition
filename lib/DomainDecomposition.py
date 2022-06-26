@@ -619,10 +619,12 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     print(YThresh)
     pi =[]
     for i in range(BatchSize):
-        P[i][P<YThresh] = 0
-        I, J = torch.nonzero(P[i], as_tuple = True)
-        V = P[i][I,J]
-        pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
+        P1 = P[i]
+        P1[P<YThresh] = 0
+        #P[i][P<YThresh] = 0
+        I, J = torch.nonzero(P1[i], as_tuple = True)
+        V = P1[i][I,J]
+        pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P1[i].shape))
     
 
     # Turn alpha and beta into numpy arrays
