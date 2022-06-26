@@ -620,7 +620,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     pi =[]
     for i in range(BatchSize):
         P1 = P[i]
-        P1[P<YThresh] = 0
+        P1[P1<YThresh] = 0
         #P[i][P<YThresh] = 0
         I, J = torch.nonzero(P1[i], as_tuple = True)
         V = P1[i][I,J]
