@@ -497,7 +497,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     dim = posX[0].shape[1]
     cellsize = int(posX[0].shape[0]**(1/dim) / 2)
     
-    offset_x = torch.tensor(posX[0,0,:]).cuda()
+    offset_x = torch.tensor(posX[0,0,0,:]).cuda()
     KeposX = torch.tensor(posX).cuda() - offset_x
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
@@ -513,7 +513,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     #subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
-    offset_y = torch.tensor(subPosY[0,0,:]).cuda()
+    offset_y = torch.tensor(subPosY[0,0,0,:]).cuda()
     KesubPosY = torch.tensor(subPosY).cuda() - offset_y
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
@@ -521,8 +521,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
-    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
+    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 2).view(-1)
+    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(-1)
 
 
     KealphaInit = KealphaInit + offset_alpha
@@ -552,9 +552,6 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # TODO: same shape as kealpha
     a = KemuX.view((BatchSize,1,2*cellsize,2*cellsize)) # TODO, future: when doing batch, first dimension goes to B
     b = KemuY.view((BatchSize,1,boxDim[0],boxDim[1])) # TODO: same here
-    
-    print("b")
-    print(b.size())
     
        #a[i][0] = KemuX[i]
        #b[i][0] = KemuY[i]
