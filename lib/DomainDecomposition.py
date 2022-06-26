@@ -484,7 +484,7 @@ def BatchDomDecIteration_KeOpsGrid(\
     # extract new atomic muY
     resultMuYAtomicDataList=[\
             Common.GetPartialYMarginal(pi,range(*indices))
-            for indices in partitionDataCompCellIndices
+            for indices in partitionDataCompCellIndices[i] for i in range(BatchSize)
             ]
     
             
