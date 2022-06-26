@@ -481,7 +481,7 @@ def BatchDomDecIteration_KeOpsGrid(\
 
     msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim, BatchSize=BatchSize)
     
-    print(partitionDataCompCellIndices.size())
+    print(len(partitionDataCompCellIndices))
     # extract new atomic muY
     resultMuYAtomicDataList=[\
             Common.GetPartialYMarginal(pi[i],range(*indices))
