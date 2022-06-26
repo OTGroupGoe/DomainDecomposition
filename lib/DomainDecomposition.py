@@ -488,7 +488,7 @@ def BatchDomDecIteration_KeOpsGrid(\
             for indices in partitionDataCompCellIndices[i]
             ])
 
-    return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
+    return (resultAlpha,resultBeta,resultMuYAtomicDataList,subY)
 
 def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
 
