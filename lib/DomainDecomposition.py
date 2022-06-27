@@ -507,7 +507,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(subMuY).cuda()
 
-    KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
+     # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
     subPosY=[posY[subY[i]].copy() for i in range(BatchSize)]
     subRhoY=[rhoY[subY[i]].copy() for i in range(BatchSize)]
@@ -528,10 +528,9 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
     offset_alpha = [torch.sum(KeposX[i]*(offset_x[i] - offset_y[i]), axis = 1).view(-1) for i in range(BatchSize)]
-    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(-1)
+    offset_beta = [torch.sum(KesubPosY[i]*(offset_y[i] - offset_x[i]), axis = 2).view(-1) for i in range(BatchSize)]
 
-
-    KealphaInit = KealphaInit + offset_alpha
+    KealphaInit = torch.tensor(alphaInit/2 + offset_alpha).cuda()
 
     assert dim == 2, "Not implemented for dimension other than 2"
     # Dirty fix for "aggregation" of basic cells
