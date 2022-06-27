@@ -620,7 +620,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
 
     
-    offset_alpha = offset_alpha.view(BatchSize,1,2*cellsize,2*cellsize)
+    offset_alpha = offset_alpha.view(BatchSize,1,(2*cellsize)**2)
     offset_beta = offset_beta.view(BatchSize,1,boxDim[0],boxDim[1])
     
     
