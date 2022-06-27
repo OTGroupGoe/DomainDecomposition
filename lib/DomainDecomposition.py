@@ -614,8 +614,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         V = P[i][I,J]
         pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
     
-    print(alpha.size)
-    print(offset_alpha.size)
+    print(alpha.size())
+    print(offset_alpha.size())
     
     alpha = [2*alpha[i] + 2*offset_alpha[i] for i in range(BatchSize)]
     beta = [2*beta[i] + 2*offset_beta[i] + torch.sum((offset_x[i] - offset_y[i])**2) for i in range(BatchSize)]
