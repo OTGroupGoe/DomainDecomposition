@@ -648,9 +648,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
     cellsize = int(posX.shape[0]**(1/dim) / 2)
 
     offset_x = torch.tensor(posX[0,:]).cuda()
-    print(offset_x.size())
     KeposX = torch.tensor(posX).cuda() - offset_x
-    print(KeposX.size())
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(subMuY).cuda()
