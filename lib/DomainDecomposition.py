@@ -530,7 +530,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     offset_alpha = [torch.sum(KeposX[i]*(offset_x[i] - offset_y[i]), axis = 1).view(-1)*2 for i in range(BatchSize)]
     offset_beta = [torch.sum(KesubPosY[i]*(offset_y[i] - offset_x[i]), axis = 1).view(-1) for i in range(BatchSize)]
 
-    KealphaInit = torch.tensor([alphaInit[i] + offset_alpha[i] for i in range(BatchSize)]).cuda()/2
+    KealphaInit = torch.tensor([alphaInit + offset_alpha[i] for i in range(BatchSize)]).cuda()/2
     
     offset_alpha = torch.tensor(offset_alpha).cuda()
     offset_beta = torch.tensor(offset_beta).cuda()
