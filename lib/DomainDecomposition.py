@@ -615,8 +615,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
     
     
-    alpha = 2*alpha + 2*offset_alpha
-    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
+    alpha = [2*alpha[i] + 2*offset_alpha[i] for i in range(BatchSize)]
+    beta = [2*beta[i] + 2*offset_beta[i] + torch.sum((offset_x[i] - offset_y[i])**2) for i in range(BatchSize)]
 
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
@@ -624,7 +624,6 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     beta = beta.cpu().numpy().ravel()
     # Multiply duals by 2 to recover behavior for cost |x-y|^2
 
-    print("Batch concluded")
     return msg, alpha, beta, pi 
 
 
