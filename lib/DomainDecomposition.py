@@ -531,7 +531,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
                                
     KealphaInit = torch.tensor(alphaInit).cuda()/2
 
-    KealphaInit = torch.tensor([KealphaInit[i] + offset_alpha[i] for i in range(BatchSize)]).cuda()
+    KealphaInit = torch.stack([KealphaInit[i] - offset_alpha[i] for i in range(BatchSize)]).cuda()
    
     
     assert dim == 2, "Not implemented for dimension other than 2"
