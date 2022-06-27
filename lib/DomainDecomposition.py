@@ -497,6 +497,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     dim = posX[0].shape[1]
     cellsize = int(posX[0].shape[0]**(1/dim) / 2)
     
+    #offset is ineffectivly calculated, maybe use smt like posX[:,0,:]
     offset_x = [posX[i][0,:] for i in range(BatchSize)]
     KeposX = torch.tensor([posX[i]-offset_x[i] for i in range(BatchSize)]).cuda()
     KemuX = torch.tensor(muX).cuda()
@@ -618,11 +619,11 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     print(offset_alpha.size())
     print(alpha[i][0].size())
     
-    offset_alpha = offset_alpha.view(BatchSize,1,(2*cellsize)**2)
-    offset_beta = offset_beta.view(BatchSize,1,boxDim[0]*boxDim[1])
+    offset_alpha = offset_alpha.view(BatchSize,1,2*cellsize,2*cellsize)
+    offset_beta = offset_beta.view(BatchSize,1,boxDim[0],boxDim[1])
     
     alpha = 2*alpha + 2*offset_alpha
-    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
+    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y,1)**2)
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
     #print(alpha)
