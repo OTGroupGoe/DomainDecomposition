@@ -522,9 +522,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
     
-    print("posX")
-    print(posX.size())
-
+    offset_y = torch.tensor(offset_y).cuda()
+    offset_x = torch.tensor(offset_x).cuda()
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
