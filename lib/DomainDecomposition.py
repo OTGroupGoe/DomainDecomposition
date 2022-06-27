@@ -517,8 +517,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     #subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
-    offset_y = torch.tensor([subPosY[i][0,:] for i in range(BatchSize)]).cuda()
-    KesubPosY = torch.tensor(subPosY).cuda() - offset_y
+    offset_y = [subPosY[i][0,:] for i in range(BatchSize)]
+    KesubPosY = torch.tensor([subPosY[i]-offset_y[i] for i in range(BatchSize)]).cuda() #- offset_y
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
     
