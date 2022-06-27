@@ -598,6 +598,10 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY+ 1E-30) 
 
+    KeposX = KeposX.view(BatchSize,2, cellsize, 2, cellsize, dim).permute((0,1,3,2,4,5)).reshape(BatchSize,-1,dim)
+    KemuX = KemuX.view(BatchSize,2, cellsize, 2, cellsize).permute((0,1,3,2,4)).reshape(BatchSize,-1)
+    alpha = alpha.view(BatchSize,2,cellsize, 2, cellsize).permute((0,1,3,2,4)).reshape(BatchSize,-1)
+    
     # Get transport plan
     # no need to 
     
