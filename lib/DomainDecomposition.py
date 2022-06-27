@@ -502,6 +502,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     print("------------------------")
     
     offset_x = [posX[i][0,:] for i in range(BatchSize)]
+    print(offset_x)
     KeposX = torch.tensor([posX[i]-offset_x[i] for i in range(BatchSize)]).cuda() #- offset_x
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
