@@ -618,9 +618,11 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     print(offset_alpha.size())
     print(alpha[i][0].size())
     
-    alpha = [2*alpha[i][0] + 2*offset_alpha[i] for i in range(BatchSize)]
-    beta = [2*beta[i][0] + 2*offset_beta[i] + torch.sum((offset_x[i] - offset_y[i])**2) for i in range(BatchSize)]
-
+    offset_alpha = offset_alpha.view(Batchsize,1,(2*cellsize)**2)
+    offset_beta = offset_beta.view(Batchsize,1,(2*cellsize)**2)
+    
+    alpha = 2*alpha + 2*offset_alpha
+    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().ravel()
     #print(alpha)
