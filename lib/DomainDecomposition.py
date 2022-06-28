@@ -596,6 +596,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             dx=dx, 
             a_init = alpha, 
             inner_iter = SinkhornInnerIter
+            print("error = {}".format(current_error))
         )
         Niter += SinkhornInnerIter
 
