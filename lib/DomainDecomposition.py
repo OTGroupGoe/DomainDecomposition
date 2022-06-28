@@ -597,7 +597,6 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             a_init = alpha, 
             inner_iter = SinkhornInnerIter
         )
-        print("error = {}".format(current_error))
         Niter += SinkhornInnerIter
 
     msg = 0 # TODO: stablish messages in the KeOps solver
@@ -719,23 +718,25 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
-    
-    alpha,beta = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
-        a,
-        b,
-        p=2,
-        blur=blur,
-        reach=None,
-        axes=None,
-        cost=None,
-        debias=False,
-        potentials=True,
-        verbose=False,
-        multiscale=False,
-        dx=dx, 
-        a_init = KealphaInit, 
-        SinkhornMaxIter  = SinkhornMaxIter
-    )
+    alpha = KealphaInit
+    while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
+        current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
+            a,
+            b,
+            p=2,
+            blur=blur,
+            reach=None,
+            axes=None,
+            cost=None,
+            debias=False,
+            potentials=True,
+            verbose=False,
+            multiscale=False,
+            dx=dx, 
+            a_init = alpha, 
+            inner_iter = SinkhornInnerIter
+        )
+        Niter += SinkhornInnerIter
 
     msg = 0 # TODO: stablish messages in the KeOps solver
     # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
@@ -881,7 +882,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        SinkhornMaxIter, BoundingBox):
+        SinkhornMaxIter, SinkhornInnerIter, BoundingBox):
     #use the bounding_box_2D to speed up operations on GPU
      # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
@@ -899,7 +900,8 @@ def DomDecIteration_KeOps(\
         muYCellData,muYCellIndices,boxDim = bounding_Box_2D(muYCellData,muYCellIndices,shape) 
    
     # solve on cell
-    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,boxDim=boxDim)
+    msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,\
+        SinkhornError,SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,SinkhornInnerIter=SinkhornInnerIter, boxDim=boxDim)
     
     # extract new atomic muY
     resultMuYAtomicDataList=[\
