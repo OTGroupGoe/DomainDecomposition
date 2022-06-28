@@ -218,6 +218,7 @@ def BatchIterate(\
             partitionDataCompCellIndicesBatch[i], SinkhornMaxIter = SinkhornMaxIter, \
             SinkhornInnerIter=SinkhornInnerIter,\
             BatchSize = currentBatch)
+
             # Extract Results from Batch
         for k in range(currentBatch):
             alphaList[i*BatchSize+k]=resultAlpha[k]
@@ -480,7 +481,7 @@ def BatchDomDecIteration_KeOpsGrid(\
     subMuY = muYBatch[::2]
     subY = muYBatch[1::2]
     
-    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim, BatchSize=BatchSize)
+    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter, SinkhornInnerIter =SinkhornInnerIter, boxDim=boxDim, BatchSize=BatchSize)
     
     resultMuYAtomicDataList = []
     # extract new atomic muY
@@ -579,9 +580,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     Niter = 0
     current_error = SinkhornError
     alpha = KealphaInit
-    print(SinkhornMaxIter, SinkhornInnerIter)
     while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
-        print("\tNiter")
         current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
             a,
             b,
