@@ -639,9 +639,9 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
     
     # Turn alpha and beta into numpy arrays
-    alpha = alpha.cpu().numpy().ravel()
+    alpha = alpha.cpu().numpy().reshape(BatchSize, -1)
     #print(alpha)
-    beta = beta.cpu().numpy().ravel()
+    beta = beta.cpu().numpy().reshape(BatchSize, -1)
     # Multiply duals by 2 to recover behavior for cost |x-y|^2
 
     return msg, alpha, beta, pi 
