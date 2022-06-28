@@ -5,6 +5,7 @@ import geomloss
 np.set_printoptions(threshold=10000)
 from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
+from pykeops import LazyTensor, Exp, Sum
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 from .CPPSinkhorn import CPPSinkhorn as CPPSinkhorn
@@ -769,7 +770,6 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     L_rhoY = LazyTensor(KesubRhoY.view(1, 1, -1))
     P = Sum(Exp((L_alpha + L_beta - 0.5*((L_posX - L_posY)**2).sum(axis = 3))/blur**2)*L_muX*L_rhoY, axis = (1,2))
     print("Just computing cell marginals")
-    # WARNING: This cannot work with arbitrary sized X cells, remove this and let just for KeopsGrid
 
     # Truncate plan
     P[P<YThresh] = 0
