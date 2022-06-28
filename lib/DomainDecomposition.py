@@ -596,8 +596,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             dx=dx, 
             a_init = alpha, 
             inner_iter = SinkhornInnerIter
-            print("error = {}".format(current_error))
         )
+        print("error = {}".format(current_error))
         Niter += SinkhornInnerIter
 
     msg = 0 # TODO: stablish messages in the KeOps solver
