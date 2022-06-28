@@ -189,8 +189,9 @@ def BatchIterate(\
         muXList,posXList,alphaList,betaDataList,betaIndexList,shape,\
         SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4,\
         SinkhornErrorRel=False, SinkhornMaxIter = None,\
-        BatchSize = 1):
+        SinkhornInnerIter = 100, BatchSize = 1):
     
+    # TODO: explain a bit more the following lines
     NCells = len(muXList)
     restsize = NCells%BatchSize
     
@@ -214,7 +215,7 @@ def BatchIterate(\
             muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
             [(muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
             [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
-            partitionDataCompCellIndicesBatch[i], SinkhornMaxIter,\
+            partitionDataCompCellIndicesBatch[i], SinkhornMaxIter, SinkhornInnerIter,\
             currentBatch)
             # Extract Results from Batch
         for k in range(currentBatch):
@@ -236,7 +237,7 @@ def Iterate(\
         muXList,posXList,alphaList,betaDataList,betaIndexList,shape,\
         SinkhornSubSolver="LogSinkhorn", SinkhornError=1E-4,\
         SinkhornErrorRel=False, SinkhornMaxIter = None,\
-        BoundingBox=False): # Introducing bounding box as an additional argument
+        SinkhornInnerIter = 100, BoundingBox=False): # Introducing bounding box as an additional argument
         #introducing the option to remove epsilon scaling, leave const_iterations at 0 to keep the scalling
 
 
@@ -265,7 +266,7 @@ def Iterate(\
                     [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
                     [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
                     partitionDataCompCellIndices[i], SinkhornMaxIter,\
-                    BoundingBox)
+                    SinkhornInnerIter, BoundingBox)
             alphaList[i]=resultAlpha
             betaDataList[i]=resultBeta
             betaIndexList[i]=muYCellIndices.copy()
@@ -456,7 +457,7 @@ def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 def BatchDomDecIteration_KeOpsGrid(\
         SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        SinkhornMaxIter, BatchSize):
+        SinkhornMaxIter, SinkhornInnerIter, BatchSize):
 
     
     
@@ -572,23 +573,26 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
-    
-    alpha,beta = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
-        a,
-        b,
-        p=2,
-        blur=blur,
-        reach=None,
-        axes=None,
-        cost=None,
-        debias=False,
-        potentials=True,
-        verbose=False,
-        multiscale=False,
-        dx=dx, 
-        a_init = KealphaInit, 
-        SinkhornMaxIter  = SinkhornMaxIter
-    )
+    Niter = 0
+    current_error = SinkhornError
+    while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
+        current_error,alpha,beta = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
+            a,
+            b,
+            p=2,
+            blur=blur,
+            reach=None,
+            axes=None,
+            cost=None,
+            debias=False,
+            potentials=True,
+            verbose=False,
+            multiscale=False,
+            dx=dx, 
+            a_init = KealphaInit, 
+            inner_iter = SinkhornInnerIter
+        )
+        Niter += SinkhornInnerIter
 
     msg = 0 # TODO: stablish messages in the KeOps solver
     # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
@@ -603,7 +607,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     alpha = alpha.view(BatchSize,2,cellsize, 2, cellsize).permute((0,1,3,2,4)).reshape(BatchSize,-1)
     
     # Get transport plan
-    # no need to 
+    # TODO: get just cell marginals instead of whole plan
     
     #P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
     
@@ -640,7 +644,9 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
 
 # muY is added ... check the call
-def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = None):
+def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
+    SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,\
+    verbose=True,SinkhornMaxIter = None, SinkhornInnerIter = 100, boxDim = None):
     
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
@@ -774,7 +780,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Sinkh
 # copies data (alphaInit, muX) to slices of (B,1,BoxDim[0], BoxDim[1]) tensors. 
 # runs the geomloss gridded sinkhorn, and then unwraps the results. 
 
-def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim=None):
+def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
+    SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,\
+    SinkhornMaxIter = None,SinkhornInnerIter = 100,boxDim=None):
     
     # X data to GPU
     KeposX = torch.tensor(posX).cuda()
@@ -842,6 +850,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornE
     #    it would be nicer to already solve the problem with the correct references.
 
     # Solve cell problem
+
     alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KesubMuYEff, KesubPosY)
     msg = 0 # TODO: stablish messages in the KeOps solver
     # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
