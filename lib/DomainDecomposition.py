@@ -215,7 +215,8 @@ def BatchIterate(\
             muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
             [(muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
             [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
-            partitionDataCompCellIndicesBatch[i], SinkhornMaxIter, SinkhornInnerIter,\
+            partitionDataCompCellIndicesBatch[i], SinkhornMaxIter = SinkhornMaxIter, \
+            SinkhornInnerIter=SinkhornInnerIter,\
             currentBatch)
             # Extract Results from Batch
         for k in range(currentBatch):
@@ -577,6 +578,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     #b /= torch.sum(b)
     Niter = 0
     current_error = SinkhornError
+    alpha = KealphaInit
     while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
         current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
             a,
@@ -591,7 +593,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
             verbose=False,
             multiscale=False,
             dx=dx, 
-            a_init = KealphaInit, 
+            a_init = alpha, 
             inner_iter = SinkhornInnerIter
         )
         Niter += SinkhornInnerIter
