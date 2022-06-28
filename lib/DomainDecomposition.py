@@ -5,7 +5,7 @@ import geomloss
 np.set_printoptions(threshold=10000)
 from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
-from pykeops import LazyTensor, Exp, Sum
+from pykeops.torch import LazyTensor, Exp, Sum
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 from .CPPSinkhorn import CPPSinkhorn as CPPSinkhorn
