@@ -630,20 +630,18 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     
     offset_alpha = offset_alpha.view(BatchSize,1,(2*cellsize)**2)
     offset_beta = offset_beta.view(BatchSize,1,boxDim[0],boxDim[1])
-    
-    
+    print(offset_alpha.shape)
+    print(alpha.shape)
+    # Bringing offset back
     alpha = 2*alpha + 2*offset_alpha
-
-    #x= torch.sum((offset_x - offset_y)**2)
-
+    # TODO: This formula is not right, currently giving the same offset to all slices in the batch
     beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
     
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().reshape(BatchSize, -1)
     #print(alpha)
     beta = beta.cpu().numpy().reshape(BatchSize, -1)
-    # Multiply duals by 2 to recover behavior for cost |x-y|^2
-
+    print(alpha.shape)
     return msg, alpha, beta, pi 
 
 
