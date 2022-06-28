@@ -719,6 +719,8 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 
     #b = b[:,:,:new_N//2,:new_N//2]
     #b /= torch.sum(b)
+    Niter = 0
+    current_error = SinkhornError
     alpha = KealphaInit
     while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
         current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
