@@ -822,7 +822,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     
     blur = np.sqrt(eps/2)
     KeOpsSolver = SamplesLoss(
-      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit, SinkhornMaxIter  = SinkhornMaxIter
+      "sinkhorn", p=2, blur=blur, scaling=0.5, debias=False, potentials=True, backend = "online", a_init = KealphaInit, inner_iter  = SinkhornInnerIter
     )
     # TODO: In the next steps there's a range of things we can try: 
     #  * Current KeOps solver performs the whole epsilon-scaling routine. This is because it assumes
@@ -856,7 +856,13 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 
     # Solve cell problem
 
-    alpha, beta = KeOpsSolver(None, KemuX, KeposX, None, KesubMuYEff, KesubPosY)
+    Niter = 0
+    current_error = SinkhornError
+    alpha = KealphaInit
+    while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
+        KeOpsSolver.a_init = alpha
+        error, (alpha, beta) = KeOpsSolver(None, KemuX, KeposX, None, KesubMuYEff, KesubPosY)
+        Niter += SinkhornInnerIter
     msg = 0 # TODO: stablish messages in the KeOps solver
     # TODO: Maybe must send blur to the GPU to make this actually efficient? See how geomloss does it.
     # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
