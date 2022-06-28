@@ -491,7 +491,9 @@ def BatchDomDecIteration_KeOpsGrid(\
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,subY)
 
-def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,SinkhornMaxIter = None,boxDim = [0,0],BatchSize = 1):
+def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,
+    SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,
+    SinkhornMaxIter = None,SinkhornInnterIter = 100, boxDim = [0,0],BatchSize = 1):
 
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
