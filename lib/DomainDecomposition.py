@@ -757,8 +757,19 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     alpha = alpha.view(2,cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
 
     # Get transport plan
-    P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
-    
+
+    # P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
+
+    # Try to compute directly cell marginals
+    L_posX = LazyTensor(KeposX.view(4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
+    L_alpha = LazyTensor(alpha.view(4, -1, 1))
+    L_muX = LazyTensor(KemuX.view(4, -1, 1))
+    L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
+    L_beta = LazyTensor(beta.view(1, 1, -1))
+    L_rhoY = LazyTensor(KesubRhoY.view(1, 1, -1))
+
+    P = Sum(Exp((L_alpha + L_beta - 0.5*((L_posX - L_posY)**2).sum(axis = 3))/blur**2)*L_muX*L_rhoY, axis = (1,2))
+
     # Truncate plan
     P[P<YThresh] = 0
     I, J = torch.nonzero(P, as_tuple = True)
