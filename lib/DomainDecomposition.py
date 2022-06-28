@@ -217,7 +217,7 @@ def BatchIterate(\
             [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
             partitionDataCompCellIndicesBatch[i], SinkhornMaxIter = SinkhornMaxIter, \
             SinkhornInnerIter=SinkhornInnerIter,\
-            currentBatch)
+            BatchSize = currentBatch)
             # Extract Results from Batch
         for k in range(currentBatch):
             alphaList[i*BatchSize+k]=resultAlpha[k]
