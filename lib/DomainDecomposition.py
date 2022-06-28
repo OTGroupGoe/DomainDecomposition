@@ -256,6 +256,7 @@ def Iterate(\
     elif SinkhornSubSolver == "SolveOnCellKeopsGrid":
         keops = 1
         SolveOnCell = SolveOnCellKeopsGrid
+        BoundingBox = True
     else:
         SolveOnCell=SinkhornSubSolver    
         
