@@ -579,7 +579,9 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     Niter = 0
     current_error = SinkhornError
     alpha = KealphaInit
+    print(SinkhornMaxIter, SinkhornInnerIter)
     while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
+        print("\tNiter")
         current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
             a,
             b,
@@ -631,18 +633,14 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     
     offset_alpha = offset_alpha.view(BatchSize,-1)
     offset_beta = offset_beta.view(BatchSize,-1)
-    print(offset_alpha.shape)
-    print(alpha.shape)
     # Bringing offset back
     alpha = 2*alpha + 2*offset_alpha
     # TODO: This formula is not right, currently giving the same offset to all slices in the batch
     beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
-    print(alpha.shape)
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().reshape(BatchSize, -1)
     #print(alpha)
     beta = beta.cpu().numpy().reshape(BatchSize, -1)
-    print(alpha.shape)
     return msg, alpha, beta, pi 
 
 
