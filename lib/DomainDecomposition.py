@@ -605,6 +605,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # KesubMuYEff but we want to change it to KesubRhoY
     
     beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY+ 1E-30) 
+    beta = beta.view(BatchSize, -1)
 
     KeposX = KeposX.view(BatchSize,2, cellsize, 2, cellsize, dim).permute((0,1,3,2,4,5)).reshape(BatchSize,-1,dim)
     KemuX = KemuX.view(BatchSize,2, cellsize, 2, cellsize).permute((0,1,3,2,4)).reshape(BatchSize,-1)
@@ -628,8 +629,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
         pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
 
     
-    offset_alpha = offset_alpha.view(BatchSize,1,(2*cellsize)**2)
-    offset_beta = offset_beta.view(BatchSize,1,boxDim[0],boxDim[1])
+    offset_alpha = offset_alpha.view(BatchSize,1,-1)
+    offset_beta = offset_beta.view(BatchSize,1,-1)
     print(offset_alpha.shape)
     print(alpha.shape)
     # Bringing offset back
