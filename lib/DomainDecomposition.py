@@ -767,8 +767,9 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
     L_beta = LazyTensor(beta.view(1, 1, -1))
     L_rhoY = LazyTensor(KesubRhoY.view(1, 1, -1))
-
     P = Sum(Exp((L_alpha + L_beta - 0.5*((L_posX - L_posY)**2).sum(axis = 3))/blur**2)*L_muX*L_rhoY, axis = (1,2))
+    print("Just computing cell marginals")
+    # WARNING: This cannot work with arbitrary sized X cells, remove this and let just for KeopsGrid
 
     # Truncate plan
     P[P<YThresh] = 0
