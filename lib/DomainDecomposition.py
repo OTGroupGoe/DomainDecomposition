@@ -777,7 +777,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     #I, J = torch.nonzero(P, as_tuple = True)
     #V = P[I,J]
     #pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
-
+    pi = P.cpu().numpy().reshape(4, -1)
     # Undo offsets, recall:
     # alpha_domdec = 2*alpha_geomloss - 2<x, offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<x, offset_y - offset_x> + (offset_x - offset_y)**2
@@ -792,7 +792,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     #alpha = 2*alpha
     #beta = 2*beta
 
-    return msg, alpha, beta, P 
+    return msg, alpha, beta, pi 
 
 # TODO: BatchDomDecIterationKeopsGrid computes a bounding box that holds all the Y data
 # copies data (alphaInit, muX) to slices of (B,1,BoxDim[0], BoxDim[1]) tensors. 
