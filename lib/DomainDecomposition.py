@@ -764,11 +764,11 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     # Try to compute directly cell marginals
     L_posX = LazyTensor(KeposX.view(4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
     L_alpha = LazyTensor(alpha.view(4, -1, 1, 1))
-    L_muX = LazyTensor(KemuX.view(4, -1, 1, 1))
+    L_logmuX = LazyTensor(torch.log(KemuX).view(4, -1, 1, 1))
     L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
     C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
     eps = torch.Tensor([1/ blur**2]).cuda()
-    log_rho = (torch.log(L_muX) + L_alpha/eps - C_ij/eps).logsumexp(1) # has shape (4, NY)
+    log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(1) # has shape (4, NY)
     P = KesubRhoY.view(1, -1) * exp(beta.view(1, -1)/eps + log_rho.view(4 ,-1))
     print("Just computing cell marginals")
 
