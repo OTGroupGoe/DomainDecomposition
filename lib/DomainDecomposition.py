@@ -927,7 +927,7 @@ def DomDecIteration_KeOps(\
     
     # If pi has shape (NC, -1), with NC the number of basic cells,
     # it is because basic cell marginals have been already extracted
-    marginals_extracted = (len(partitionDataCompCells) == pi.shape[0])
+    marginals_extracted = (len(partitionDataCompCellIndices) == pi.shape[0])
     partitionIndices = range(pi.shape[0]) if marginals_extracted else partitionDataCompCellIndices
     # extract new atomic muY
     resultMuYAtomicDataList=[\
