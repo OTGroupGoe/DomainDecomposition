@@ -5,7 +5,7 @@ import geomloss
 np.set_printoptions(threshold=10000)
 from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
-from pykeops.torch import LazyTensor, Exp, Sum
+from pykeops.torch import LazyTensor
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 from .CPPSinkhorn import CPPSinkhorn as CPPSinkhorn
@@ -766,9 +766,10 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     L_alpha = LazyTensor(alpha.view(4, -1, 1))
     L_muX = LazyTensor(KemuX.view(4, -1, 1))
     L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
-    L_beta = LazyTensor(beta.view(1, 1, -1))
-    L_rhoY = LazyTensor(KesubRhoY.view(1, 1, -1))
-    P = Sum(Exp((L_alpha + L_beta - 0.5*((L_posX - L_posY)**2).sum(axis = 3))/blur**2)*L_muX*L_rhoY, axis = (1,2))
+    C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
+    eps = torch.Tensor([1/ blur**2]).cuda()
+    log_rho = (torch.log(L_muX) + L_alpha/eps - C_ij/eps).logsumexp(1) # has shape (4, NY)
+    P = KesubRhoY.view(1, -1) * exp(beta.view(1, -1)/eps + log_rho.view(4 ,-1))
     print("Just computing cell marginals")
 
     # Truncate plan
