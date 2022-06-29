@@ -773,10 +773,10 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     print("Just computing cell marginals")
 
     # Truncate plan
-    P[P<YThresh] = 0
-    I, J = torch.nonzero(P, as_tuple = True)
-    V = P[I,J]
-    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
+    #P[P<YThresh] = 0
+    #I, J = torch.nonzero(P, as_tuple = True)
+    #V = P[I,J]
+    #pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
 
     # Undo offsets, recall:
     # alpha_domdec = 2*alpha_geomloss - 2<x, offset_x - offset_y>
@@ -925,15 +925,17 @@ def DomDecIteration_KeOps(\
     msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,\
         SinkhornError,SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,SinkhornInnerIter=SinkhornInnerIter, boxDim=boxDim)
     
+    # extract new atomic muY
     # If pi has shape (NC, -1), with NC the number of basic cells,
     # it is because basic cell marginals have been already extracted
     marginals_extracted = (len(partitionDataCompCellIndices) == pi.shape[0])
-    partitionIndices = range(pi.shape[0]) if marginals_extracted else partitionDataCompCellIndices
-    # extract new atomic muY
-    resultMuYAtomicDataList=[\
-            Common.GetPartialYMarginal(pi,range(*indices))
-            for indices in partitionIndices
-            ]
+    if marginals_extracted:
+        resultMuYAtomicDataList = [np.array(pi[i]) for i in range(pi.shape[0])]
+    else:
+        resultMuYAtomicDataList=[\
+                Common.GetPartialYMarginal(pi,range(*indices))
+                for indices in partitionDataCompCellIndices
+                ]
     
             
 
