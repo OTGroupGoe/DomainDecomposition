@@ -925,10 +925,14 @@ def DomDecIteration_KeOps(\
     msg,resultAlpha,resultBeta,pi=SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps,\
         SinkhornError,SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,SinkhornInnerIter=SinkhornInnerIter, boxDim=boxDim)
     
+    # If pi has shape (NC, -1), with NC the number of basic cells,
+    # it is because basic cell marginals have been already extracted
+    marginals_extracted = (len(partitionDataCompCells) == pi.shape[0])
+    partitionIndices = range(pi.shape[0]) if marginals_extracted else partitionDataCompCellIndices
     # extract new atomic muY
     resultMuYAtomicDataList=[\
             Common.GetPartialYMarginal(pi,range(*indices))
-            for indices in partitionDataCompCellIndices
+            for indices in partitionIndices
             ]
     
             
