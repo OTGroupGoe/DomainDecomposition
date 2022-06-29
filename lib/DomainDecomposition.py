@@ -487,12 +487,17 @@ def BatchDomDecIteration_KeOpsGrid(\
     
     resultMuYAtomicDataList = []
     # extract new atomic muY
-    for i in range(BatchSize):
-        resultMuYAtomicDataList.append([\
-            Common.GetPartialYMarginal(pi[i],range(*indices))
-            for indices in partitionDataCompCellIndices[i]
-            ])
-
+    marginals_extracted = (len(partitionDataCompCellIndices) == pi.shape[1])
+    if marginals_extracted:
+        for i in BatchSize:
+            resultMuYAtomicDataList.append([np.array(pi[i,j]) for j in range(pi.shape[1])])
+    else:
+        for i in range(BatchSize):
+            resultMuYAtomicDataList.append([\
+                Common.GetPartialYMarginal(pi[i],range(*indices))
+                for indices in partitionDataCompCellIndices[i]
+                ])
+    
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,subY)
 
 def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,
@@ -619,18 +624,28 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     
     #P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
     
-    P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
+    # P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
     
     # Truncate plan
 
-    pi =[]
-    for i in range(BatchSize):
-        P[i][P[i]<YThresh] = 0
-        #P[i][P<YThresh] = 0
-        I, J = torch.nonzero(P[i], as_tuple = True)
-        V = P[i][I,J]
-        pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
+    # pi =[]
+    # for i in range(BatchSize):
+    #     P[i][P[i]<YThresh] = 0
+    #     #P[i][P<YThresh] = 0
+    #     I, J = torch.nonzero(P[i], as_tuple = True)
+    #     V = P[i][I,J]
+    #     pi.append(csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P[i].shape))
 
+    # Compute directly cell marginals
+    L_posX = LazyTensor(KeposX.view(BatchSize, 4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
+    L_alpha = LazyTensor(alpha.view(BatchSize, 4, -1, 1, 1))
+    L_logmuX = LazyTensor(torch.log(KemuX).view(BatchSize, 4, -1, 1, 1))
+    L_posY = LazyTensor(KesubPosY.view(BatchSize, 1, 1, -1, dim))
+    C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
+    eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
+    log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(2) # has shape (4, NY)
+    P = KesubRhoY.view(BatchSize, 1, -1) * torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho.view(BatchSize, 4 ,-1))
+    pi = P.cpu().numpy().reshape(BatchSize, 4, -1)
     
     offset_alpha = offset_alpha.view(BatchSize,-1)
     offset_beta = offset_beta.view(BatchSize,-1)
