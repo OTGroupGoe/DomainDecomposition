@@ -770,7 +770,6 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
     log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(1) # has shape (4, NY)
     P = KesubRhoY.view(1, -1) * torch.exp(beta.view(1, -1)/eps + log_rho.view(4 ,-1))
-    print("Just computing cell marginals")
 
     # Truncate plan
     #P[P<YThresh] = 0
