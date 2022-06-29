@@ -489,7 +489,7 @@ def BatchDomDecIteration_KeOpsGrid(\
     # extract new atomic muY
     marginals_extracted = (len(partitionDataCompCellIndices) == pi.shape[1])
     if marginals_extracted:
-        for i in BatchSize:
+        for i in range(BatchSize):
             resultMuYAtomicDataList.append([np.array(pi[i,j]) for j in range(pi.shape[1])])
     else:
         for i in range(BatchSize):
