@@ -792,7 +792,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     #alpha = 2*alpha
     #beta = 2*beta
 
-    return msg, alpha, beta, pi 
+    return msg, alpha, beta, P 
 
 # TODO: BatchDomDecIterationKeopsGrid computes a bounding box that holds all the Y data
 # copies data (alphaInit, muX) to slices of (B,1,BoxDim[0], BoxDim[1]) tensors. 
