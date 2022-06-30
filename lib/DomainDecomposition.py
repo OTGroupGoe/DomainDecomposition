@@ -214,8 +214,8 @@ def BatchIterate(\
         print(i)
         resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
             muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
-            [(muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
-            [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
+            [[muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]] for k in range(currentBatch)],\
+            [[muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]] for k in range(currentBatch)],\
             partitionDataCompCellIndicesBatch[i], SinkhornMaxIter = SinkhornMaxIter, \
             SinkhornInnerIter=SinkhornInnerIter,\
             BatchSize = currentBatch)
