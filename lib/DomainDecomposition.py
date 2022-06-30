@@ -472,7 +472,6 @@ def BatchDomDecIteration_KeOpsGrid(\
         muYCellIndices.append(arrayAdder.getDataTuple()[1])
         
     #muYCellData,muYCellIndices=arrayAdder.getDataTuple()
-    print([x.shape for x in posXCell])
     # convert to bounding Box 
     # Replacing original muYCellData and muYCellIndices
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
@@ -480,8 +479,7 @@ def BatchDomDecIteration_KeOpsGrid(\
     # Convert to array
     subMuY = muYBatch[::2]
     subY = [np.array(ind) for ind in muYBatch[1::2]]
-    print(subMuY)
-    
+
     msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter, SinkhornInnerIter =SinkhornInnerIter, boxDim=boxDim, BatchSize=BatchSize)
     
     # extract new atomic muY
@@ -600,7 +598,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
-    print(current_error)
+    print("error: ", current_error)
 
 
 
