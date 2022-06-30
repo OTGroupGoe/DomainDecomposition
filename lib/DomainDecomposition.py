@@ -603,7 +603,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
-    beta = beta + eps*torch.log(KesubMuYEff/KesubRhoY + 1E-30) # TODO, for L: check if we can remove this 1E-30
+    beta = beta + eps*torch.log(KesubMuYEff/KesubRhoY) # TODO, for L: check if we can remove this 1E-30
     beta = beta.reshape(BatchSize, -1)
 
     # Undo permutation
