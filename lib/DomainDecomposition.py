@@ -479,7 +479,7 @@ def BatchDomDecIteration_KeOpsGrid(\
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
     muYBatch = [item for sublist in muYBatch for item in sublist]
     subMuY = muYBatch[::2]
-    subY = muYBatch[1::2]
+    subY = [np.array(ind) for ind in muYBatch[1::2]]
     
     msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter, SinkhornInnerIter =SinkhornInnerIter, boxDim=boxDim, BatchSize=BatchSize)
     
@@ -601,7 +601,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # KesubMuYEff but we want to change it to KesubRhoY
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
-    beta = beta + eps*torch.log(KesubMuYEff/KesubRhoY + 1E-30) # TODO, for L: check if we can remove this 1E-30
+    beta = beta + eps*log_dens(KesubMuYEff/KesubRhoY + 1E-30) # TODO, for L: check if we can remove this 1E-30
     beta = beta.reshape(BatchSize, -1)
 
     # Undo permutation
@@ -628,7 +628,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Current version: compute directly cell marginals using a keops reduction. 
     L_posX = LazyTensor(KeposX.view(BatchSize, 4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
     L_alpha = LazyTensor(alpha.view(BatchSize, 4, -1, 1, 1))
-    L_logmuX = LazyTensor(torch.log(KemuX).view(BatchSize, 4, -1, 1, 1))
+    L_logmuX = LazyTensor(log_dens(KemuX).view(BatchSize, 4, -1, 1, 1))
     L_posY = LazyTensor(KesubPosY.view(BatchSize, 1, 1, -1, dim))
     C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
 
@@ -636,7 +636,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # indexing by c cells, i the x points in each basic cell, by j the y points we have:
     # \nu_j^c = \sum_i \mu_i^c * exp((\alpha_i^c + \beta_j - cost(x_i^c, y_j))/eps) \nu_j
     log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(2) # has shape (4, NY), 4 for the number of cells
-    P = KesubRhoY.view(BatchSize, 1, -1) * torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho.view(BatchSize, 4 ,-1))
+    P = torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho.view(BatchSize, 4 ,-1) + log_dens(KesubRhoY).view(BatchSize, 1, -1))
     pi = P.cpu().numpy().reshape(BatchSize, 4, -1)
     
     offset_alpha = offset_alpha.view(BatchSize,-1)
@@ -753,7 +753,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
     
-    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY) 
+    beta = beta + (blur**2)*log_dens(KesubMuYEff/KesubRhoY) 
     beta = beta.reshape(-1)
 
     # Undo the dirty fix for "aggregation" of basic cells
@@ -769,7 +769,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     # Try to compute directly cell marginals
     L_posX = LazyTensor(KeposX.view(4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
     L_alpha = LazyTensor(alpha.view(4, -1, 1, 1))
-    L_logmuX = LazyTensor(torch.log(KemuX).view(4, -1, 1, 1))
+    L_logmuX = LazyTensor(log_dens(KemuX).view(4, -1, 1, 1))
     L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
     C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
@@ -857,7 +857,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
 
-    beta = beta + eps*torch.log(KesubMuYEff/KesubRhoY)
+    beta = beta + eps*log_dens(KesubMuYEff/KesubRhoY)
 
     # Get transport plan
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/eps)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
