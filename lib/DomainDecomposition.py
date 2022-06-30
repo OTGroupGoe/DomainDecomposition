@@ -638,8 +638,9 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # indexing by c cells, i the x points in each basic cell, by j the y points we have:
     # \nu_j^c = \sum_i \mu_i^c * exp((\alpha_i^c + \beta_j - cost(x_i^c, y_j))/eps) \nu_j
     log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(2) # has shape (4, NY), 4 for the number of cells
+    log_rho = log_rho.view(BatchSize, 4, -1)
     print("log_rho: ", torch.sum(log_rho, axis = -1))
-    P = KesubRhoY.view(BatchSize, 1, -1) * torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho.view(BatchSize, 4 ,-1))
+    P = KesubRhoY.view(BatchSize, 1, -1) * torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho)
     print("mass of current version: ", torch.sum(P))
     print("mass of current version, by cell", torch.sum(P, axis = 2))
 
