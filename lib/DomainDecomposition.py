@@ -638,10 +638,12 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Reducing to cell marginals is basically a Sinkhorn iteration on each basic cell: 
     # indexing by c cells, i the x points in each basic cell, by j the y points we have:
     # \nu_j^c = \sum_i \mu_i^c * exp((\alpha_i^c + \beta_j - cost(x_i^c, y_j))/eps) \nu_j
+
     log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(2) # has shape (4, NY), 4 for the number of cells
     log_rho = log_rho.view(BatchSize, 4, -1)
     print("KeposX", KeposX)
     print("logmuX", log_dens(KemuX))
+    print("alpha", alpha.view(4, -1))
     print("eps", eps)
     print("Y", KesubPosY)
     print("L_logmuX: ", torch.sum(log_dens(KemuX).view(4, -1), axis = 1))
