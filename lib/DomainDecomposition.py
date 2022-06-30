@@ -462,7 +462,6 @@ def BatchDomDecIteration_KeOpsGrid(\
         SinkhornMaxIter, SinkhornInnerIter, BatchSize):
 
     
-    
     muYCellData = []
     muYCellIndices = []
     for i in range(BatchSize):
@@ -473,7 +472,7 @@ def BatchDomDecIteration_KeOpsGrid(\
         muYCellIndices.append(arrayAdder.getDataTuple()[1])
         
     #muYCellData,muYCellIndices=arrayAdder.getDataTuple()
-    
+    print([x.shape for x in posXCell])
     # convert to bounding Box 
     # Replacing original muYCellData and muYCellIndices
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
