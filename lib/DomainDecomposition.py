@@ -642,7 +642,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     log_rho = log_rho.view(BatchSize, 4, -1)
     print("L_logmuX: ", torch.sum(log_dens(KemuX).view(4, -1), axis = 1))
     print("log_rho: ", torch.sum(log_rho, axis = -1))
-    P = KesubRhoY.view(BatchSize, 1, -1) * torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho)
+    P = torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho + log_dens(KesubRhoY.view(BatchSize, 1, -1)))
     print("mass of current version: ", torch.sum(P))
     print("mass of current version, by cell", torch.sum(P, axis = 2))
 
