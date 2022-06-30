@@ -325,7 +325,7 @@ def getPi(c,alpha,beta,rhoX,rhoY,eps):
     return pi
 
 def SolveOnCell_LogSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14, **kwargs):
-
+    
     subPosY=posY[subY].copy()
     subRhoY=rhoY[subY].copy()
 
@@ -612,8 +612,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Get transport plan
     ##########################################################
     # Previous version: compute dense transport plan and convert to sparse matrix, deprecated
-    # P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
-    
+    P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/blur**2)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
+    print("mass of previous version: ", torch.sum(P))
     # Truncate plan
 
     # pi =[]
@@ -637,6 +637,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # \nu_j^c = \sum_i \mu_i^c * exp((\alpha_i^c + \beta_j - cost(x_i^c, y_j))/eps) \nu_j
     log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(2) # has shape (4, NY), 4 for the number of cells
     P = KesubRhoY.view(BatchSize, 1, -1) * torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho.view(BatchSize, 4 ,-1))
+    print("mass of current version: ", torch.sum(P))
+
     pi = P.cpu().numpy().reshape(BatchSize, 4, -1)
     
     offset_alpha = offset_alpha.view(BatchSize,-1)
@@ -863,13 +865,10 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/eps)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
     # Truncate plan # IM: not needed actually, removing
-    print("mass of plan: ", torch.sum(P))
-    P[P<YThresh] = 0
-    I, J = torch.nonzero(P, as_tuple = True)
-    V = P[I,J]
-    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
-    print("mass of sparse plan: ", torch.sum(P))
-
+    # P[P<YThresh] = 0
+    # I, J = torch.nonzero(P, as_tuple = True)
+    # V = P[I,J]
+    # pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
     pi = P.cpu().numpy()
 
     # Turn alpha and beta into numpy arrays
