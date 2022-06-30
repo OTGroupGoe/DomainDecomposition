@@ -558,6 +558,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     #TODO generalize this
     
     dx = posX[0][1,1] - posX[0][0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
+    print("dx = ", dx)
     
     # dx =  (len(posX)**1/dim)/2
     # ----------------
@@ -599,6 +600,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
+    print(alpha)
+    print(beta)
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
     beta = beta + eps*torch.log(KesubMuYEff/KesubRhoY + 1E-30) # TODO, for L: check if we can remove this 1E-30
