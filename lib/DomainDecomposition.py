@@ -631,7 +631,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Current version: compute directly cell marginals using a keops reduction. 
     L_posX = LazyTensor(KeposX.view(BatchSize, 4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
     L_alpha = LazyTensor(alpha.view(BatchSize, 4, -1, 1, 1))
-    L_logmuX = LazyTensor(torch.log(KemuX).view(BatchSize, 4, -1, 1, 1))
+    L_logmuX = LazyTensor(log_dens(KemuX).view(BatchSize, 4, -1, 1, 1))
     L_posY = LazyTensor(KesubPosY.view(BatchSize, 1, 1, -1, dim))
     C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
 
@@ -640,7 +640,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # \nu_j^c = \sum_i \mu_i^c * exp((\alpha_i^c + \beta_j - cost(x_i^c, y_j))/eps) \nu_j
     log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(2) # has shape (4, NY), 4 for the number of cells
     log_rho = log_rho.view(BatchSize, 4, -1)
-    print("L_logmuX: ", torch.sum(torch.log(KemuX).view(4, -1), axis = 1))
+    print("L_logmuX: ", torch.sum(log_dens(KemuX).view(4, -1), axis = 1))
     print("log_rho: ", torch.sum(log_rho, axis = -1))
     P = KesubRhoY.view(BatchSize, 1, -1) * torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho)
     print("mass of current version: ", torch.sum(P))
@@ -762,7 +762,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
     
-    beta = beta + (blur**2)*torch.log(KesubMuYEff/KesubRhoY) 
+    beta = beta + (blur**2)*log_dens(KesubMuYEff/KesubRhoY) 
     beta = beta.reshape(-1)
 
     # Undo the dirty fix for "aggregation" of basic cells
@@ -778,7 +778,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     # Try to compute directly cell marginals
     L_posX = LazyTensor(KeposX.view(4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
     L_alpha = LazyTensor(alpha.view(4, -1, 1, 1))
-    L_logmuX = LazyTensor(torch.log(KemuX).view(4, -1, 1, 1))
+    L_logmuX = LazyTensor(log_dens(KemuX).view(4, -1, 1, 1))
     L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
     C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
@@ -866,7 +866,7 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
 
-    beta = beta + eps*torch.log(KesubMuYEff/KesubRhoY)
+    beta = beta + eps*log_dens(KesubMuYEff/KesubRhoY)
 
     # Get transport plan
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/eps)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
