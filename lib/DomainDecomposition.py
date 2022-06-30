@@ -575,6 +575,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Run Sinkhorn iterations
     Niter = 0
     current_error = SinkhornError
+    print("alpha init", KealphaInit)
     alpha = KealphaInit
     while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
         current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
@@ -644,6 +645,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     print("KeposX", KeposX)
     print("logmuX", log_dens(KemuX))
     print("alpha", alpha.view(4, -1))
+    print("beta", beta)
     print("eps", eps)
     print("Y", KesubPosY)
     print("L_logmuX: ", torch.sum(log_dens(KemuX).view(4, -1), axis = 1))
