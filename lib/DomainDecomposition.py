@@ -477,8 +477,9 @@ def BatchDomDecIteration_KeOpsGrid(\
     # Replacing original muYCellData and muYCellIndices
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
     muYBatch = [item for sublist in muYBatch for item in sublist]
-    subMuY = muYBatch[::2]
-    subY = muYBatch[1::2]
+    # Convert to array
+    subMuY = np.array(muYBatch[::2])
+    subY = np.array(muYBatch[1::2])
     
     msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter, SinkhornInnerIter =SinkhornInnerIter, boxDim=boxDim, BatchSize=BatchSize)
     
