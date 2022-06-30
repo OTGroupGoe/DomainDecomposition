@@ -324,8 +324,8 @@ def getPi(c,alpha,beta,rhoX,rhoY,eps):
     pi=np.einsum(rhoX,[0],rhoY,[1],pi,[0,1],[0,1])
     return pi
 
-def SolveOnCell_LogSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14):
-    
+def SolveOnCell_LogSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14, **kwargs):
+
     subPosY=posY[subY].copy()
     subRhoY=rhoY[subY].copy()
 
@@ -361,7 +361,7 @@ def SolveOnCell_LogSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Si
 
 
 def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,\
-        autoEpsFix=True,verbose=True):
+        autoEpsFix=True,verbose=True, **kwargs):
     """Runs the Sinkhorn algorithm on the entropic Wasserstein-2 transport problem
     between (muX,posX) and (muY,posY) with regularization eps and initial dual variable
     alphaInit on the X-side.
@@ -493,7 +493,7 @@ def BatchDomDecIteration_KeOpsGrid(\
 
 def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,
     SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,
-    SinkhornMaxIter = None,SinkhornInnerIter = 100, boxDim = [0,0],BatchSize = 1):
+    SinkhornMaxIter = None,SinkhornInnerIter = 100, boxDim = [0,0],BatchSize = 1, **kwargs):
 
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
@@ -518,7 +518,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     
     # Why? subMuY should be already normalized!
     subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
-    #subMuYEff = subMuYEff + 1E-30
+    # subMuYEff = subMuYEff + 1E-30
    
     # Y data: to GPU
     offset_y = [subPosY[i][0,:] for i in range(BatchSize)]
@@ -655,7 +655,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 # muY is added ... check the call
 def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,\
-    verbose=True,SinkhornMaxIter = None, SinkhornInnerIter = 100, boxDim = None):
+    verbose=True,SinkhornMaxIter = None, SinkhornInnerIter = 100, boxDim = None, **kwargs):
     
     assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
 
@@ -804,7 +804,7 @@ def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 
 def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,verbose=True,\
-    SinkhornMaxIter = None,SinkhornInnerIter = 100,boxDim=None):
+    SinkhornMaxIter = None,SinkhornInnerIter = 100,boxDim=None, **kwargs):
     
     # X data to GPU
     KeposX = torch.tensor(posX).cuda()
@@ -863,10 +863,13 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/eps)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
 
     # Truncate plan # IM: not needed actually, removing
-    # P[P<YThresh] = 0
-    # I, J = torch.nonzero(P, as_tuple = True)
-    # V = P[I,J]
-    # pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
+    print("mass of plan: ", torch.sum(P))
+    P[P<YThresh] = 0
+    I, J = torch.nonzero(P, as_tuple = True)
+    V = P[I,J]
+    pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
+    print("mass of sparse plan: ", torch.sum(P))
+
     pi = P.cpu().numpy()
 
     # Turn alpha and beta into numpy arrays
