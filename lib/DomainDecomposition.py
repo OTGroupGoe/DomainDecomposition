@@ -5,6 +5,7 @@ import geomloss
 np.set_printoptions(threshold=10000)
 from scipy.sparse import csr_matrix
 from geomloss import SamplesLoss
+from geomloss.utils import log_dens
 from pykeops.torch import LazyTensor
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
@@ -603,7 +604,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
-    beta = beta + eps*torch.log(KesubMuYEff/KesubRhoY) # TODO, for L: check if we can remove this 1E-30
+    beta = beta + eps*log_dens(KesubMuYEff/KesubRhoY) # TODO, for L: check if we can remove this 1E-30
     beta = beta.reshape(BatchSize, -1)
 
     # Undo permutation
