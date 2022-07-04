@@ -407,7 +407,10 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     cellsize = int(posX[0].shape[0]**(1/dim) / 2)
     
     # TODO offset is ineffectivly calculated, maybe use smt like posX[:,0,:]
-    print(posX.shape())
+    print(len(posX))
+    print(len(posX[0]))
+    print(len(posX[0][0]))
+    print(len(posX[0][0][0]))
     offset_x = torch.tensor(posX[:,0,:]).reshape(BatchSize,1,dim)
     KeposX = torch.tensor(posX).cuda() - offset_x
     KemuX = torch.tensor(muX).cuda()
