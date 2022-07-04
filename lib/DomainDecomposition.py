@@ -197,6 +197,8 @@ def BatchIterate(\
     NCells = len(muXList)
     restsize = NCells%BatchSize
     
+    print("test")
+    
     muXListBatch = [[muXList[i] for i in range(BatchSize*j,BatchSize*j+BatchSize)] for j in range(NCells//BatchSize)]
     posXListBatch = [[posXList[i] for i in range(BatchSize*j,BatchSize*j+BatchSize)] for j in range(NCells//BatchSize)]
     alphaListBatch = [[alphaList[i] for i in range(BatchSize*j,BatchSize*j+BatchSize)] for j in range(NCells//BatchSize)]
