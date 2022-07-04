@@ -613,7 +613,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Bringing offset back
     alpha = 2*alpha + 2*offset_alpha
     # TODO, for L: This formula is not right, currently giving the same offset to all slices in the batch
-    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y,axis=2)**2)
+    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2,axis=2)
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().reshape(BatchSize, -1)
     #print(alpha)
