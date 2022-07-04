@@ -212,7 +212,7 @@ def BatchIterate(\
         
     for i in range(len(muXListBatch)):
         currentBatch = len(muXListBatch[i])
-        print(i)
+        # print(i)
         resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=BatchDomDecIteration_KeOpsGrid(SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
             muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
             [[muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]] for k in range(currentBatch)],\
@@ -607,7 +607,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
-    print("error: ", current_error)
+    # print("error: ", current_error)
 
     #print("alpha", alpha.view(4, -1))
     #print("beta", beta)
