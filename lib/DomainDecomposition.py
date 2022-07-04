@@ -519,7 +519,6 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Why? subMuY should be already normalized!
     subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
     # subMuYEff = subMuYEff + 1E-30
-   
     # Y data: to GPU
     offset_y = [subPosY[i][0,:] for i in range(BatchSize)]
     KesubPosY = torch.tensor([subPosY[i]-offset_y[i] for i in range(BatchSize)]).cuda() #- offset_y
@@ -602,10 +601,12 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # KesubMuYEff but we want to change it to KesubRhoY
     print("error: ", current_error)
 
+    print("alpha", alpha.view(4, -1))
+    print("beta", beta)
 
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
-    beta = beta + eps*log_dens(KesubMuYEff/KesubRhoY) # TODO, for L: check if we can remove this 1E-30
+    beta = beta + eps*log_dens(KesubMuYEff/KesubRhoY)
     beta = beta.reshape(BatchSize, -1)
 
     # Undo permutation
@@ -644,8 +645,6 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     log_rho = log_rho.view(BatchSize, 4, -1)
     print("KeposX", KeposX)
     print("logmuX", log_dens(KemuX))
-    print("alpha", alpha.view(4, -1))
-    print("beta", beta)
     print("eps", eps)
     print("Y", KesubPosY)
     print("L_logmuX: ", torch.sum(log_dens(KemuX).view(4, -1), axis = 1))
