@@ -625,7 +625,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Get transport plan
     ##########################################################
     # Previous version: compute dense transport plan and convert to sparse matrix, deprecated
-    P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/eps)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
+    # P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/eps)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
     #print("mass of previous version: ", torch.sum(P))
     # Truncate plan
 
