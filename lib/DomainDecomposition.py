@@ -482,13 +482,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     dim = posX[0].shape[1]
     cellsize = int(posX[0].shape[0]**(1/dim) / 2)
 
-    # TODO, for L: make everything be a Tensor from the very beginning, instead of making lists of tensors
-    # and then stacking them. Operations between the tensors (for example, substracting offset_x) can be made efficiently
-    # in Tensor form by reshaping the Tensor with an appropriate shape. 
-    
-    # TODO offset is ineffectivly calculated, maybe use smt like posX[:,0,:]
-    posX = np.array(posX)
-    offset_x = torch.tensor(posX[:,0,:]).cuda().reshape(BatchSize,1,dim)
+    offset_x = torch.tensor(np.array(posX)[:,0,:]).cuda().reshape(BatchSize,1,dim)
     KeposX = torch.tensor(posX).cuda() - offset_x
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
@@ -502,8 +496,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
    
     # Y data: to GPU
-    subPosY = np.array(subPosY)
-    offset_y =  torch.tensor(subPosY[:,0,:]).cuda().reshape(BatchSize,1,dim)
+    offset_y =  torch.tensor(np.array(subPosY)[:,0,:]).cuda().reshape(BatchSize,1,dim)
     KesubPosY = torch.tensor(subPosY).cuda() - offset_y
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
@@ -511,19 +504,16 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    offset_alpha = torch.stack([torch.sum(KeposX[i]*(offset_x[i] - offset_y[i]), axis = 1).view(-1) for i in range(BatchSize)])
-    offset_beta = torch.stack([torch.sum(KesubPosY[i]*(offset_y[i] - offset_x[i]), axis = 1).view(-1) for i in range(BatchSize)])
+    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 2).view(-1)
+    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(-1)
     
     # Divide by 2 because geomloss uses the cost |x-y|^2/2
-    KealphaInit = torch.tensor(alphaInit).cuda()/2
-
-    KealphaInit = torch.stack([KealphaInit[i] - offset_alpha[i] for i in range(BatchSize)]).cuda()
+    KealphaInit = torch.tensor(alphaInit).cuda()/2 - offset_alpha
    
     # TODO: implement for 3D data!
     assert dim == 2, "Not implemented for dimension other than 2"
     
     # Dirty fix for "aggregation" of basic cells
-
     KeposX = KeposX.view(BatchSize,2, 2, cellsize, cellsize, dim).permute((0,1,3,2,4,5)).reshape(BatchSize,-1,dim) # here a view is not possible in conjuction with the permute
     KemuX = KemuX.view(BatchSize,2, 2, cellsize, cellsize).permute((0,1,3,2,4)).reshape(BatchSize,-1)
     KealphaInit = KealphaInit.view(BatchSize,2,2,cellsize,cellsize).permute((0,1,3,2,4)).reshape(BatchSize,1,2*cellsize, 2*cellsize)
@@ -623,148 +613,11 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Bringing offset back
     alpha = 2*alpha + 2*offset_alpha
     # TODO, for L: This formula is not right, currently giving the same offset to all slices in the batch
-    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
+    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y,axis=2)**2)
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().reshape(BatchSize, -1)
     #print(alpha)
     beta = beta.cpu().numpy().reshape(BatchSize, -1)
-    return msg, alpha, beta, pi 
-
-def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
-    SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,\
-    verbose=True,SinkhornMaxIter = None, SinkhornInnerIter = 100, boxDim = None):
-
-    
-    assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
-
-    dim = posX.shape[1]
-    cellsize = int(posX.shape[0]**(1/dim) / 2)
-
-    print(posX)
-    print("---")
-    offset_x = torch.tensor(posX[0,:]).cuda()
-    print(offset_x)
-    print("-----------------------")
-    KeposX = torch.tensor(posX).cuda() - offset_x
-    KemuX = torch.tensor(muX).cuda()
-    KeposY = torch.tensor(posY).cuda()
-    KemuY = torch.tensor(subMuY).cuda()
-
-    KealphaInit = torch.tensor(alphaInit).cuda() 
-    
-     # Y data: extract
-    subPosY=posY[subY].copy()
-    subRhoY=rhoY[subY].copy()
-    
-    # Why? subMuY should be already normalized!
-    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
-    # subMuYEff = subMuYEff + 1E-30
-   
-    # Y data: to GPU
-    offset_y = torch.tensor(subPosY[0,:]).cuda()
-    KesubPosY = torch.tensor(subPosY).cuda() - offset_y
-    KesubRhoY = torch.tensor(subRhoY).cuda()
-    KesubMuYEff = torch.tensor(subMuYEff).cuda()
-
-    # Offsets in duals
-    # alpha_domdec = 2*alpha_geomloss + 2<x', offset_x - offset_y>
-    # beta_domdec = 2*beta_geomloss + 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
-    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
-
-    KealphaInit = KealphaInit/2 - offset_alpha
-
-    assert dim == 2, "Not implemented for dimension other than 2"
-    # Dirty fix for "aggregation" of basic cells
-    KeposX = KeposX.view(2, 2, cellsize, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim) # here a view is not possible in conjuction with the permute
-    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).reshape(-1)
-    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).reshape(1, 1, 2*cellsize, 2*cellsize)
-
-    blur = np.sqrt(eps/2)
-    if SinkhornErrorRel:
-        effectiveError=SinkhornError*np.sum(muX)
-    else:
-        effectiveError=SinkhornError
-
-    dx = posX[1,1] - posX[0,1]
-    # ----------------
-    # With new softmin-grid
-    # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
-    # and then the physical dimensions come
-
-    a = KemuX.view((1,1,2*cellsize,2*cellsize))
-    b = KemuY.view((1,1,boxDim[0],boxDim[1]))
-  
-    KesubMuYEff = KesubMuYEff.view((1,1,boxDim[0],boxDim[1]))
-    KesubRhoY = KesubRhoY.view((1,1,boxDim[0],boxDim[1]))
-
-    Niter = 0
-    current_error = SinkhornError
-    alpha = KealphaInit
-    while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
-        current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
-            a,
-            b,
-            p=2,
-            blur=blur,
-            reach=None,
-            axes=None,
-            cost=None,
-            debias=False,
-            potentials=True,
-            verbose=False,
-            multiscale=False,
-            dx=dx, 
-            a_init = alpha, 
-            inner_iter = SinkhornInnerIter
-        )
-        Niter += SinkhornInnerIter
-
-    msg = 0 # TODO: stablish messages in the KeOps solver
-    # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
-    # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
-    # KesubMuYEff but we want to change it to KesubRhoY
-    
-    beta = beta + (blur**2)*log_dens(KesubMuYEff/KesubRhoY) 
-    beta = beta.reshape(-1)
-
-    # Undo the dirty fix for "aggregation" of basic cells
-    KeposX = KeposX.view(2, cellsize, 2, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim)
-    KemuX = KemuX.view(2, cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
-    alpha = alpha.view(2,cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
-
-    # Get transport plan
-
-
-    # P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
-
-    # Try to compute directly cell marginals
-    L_posX = LazyTensor(KeposX.view(4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
-    L_alpha = LazyTensor(alpha.view(4, -1, 1, 1))
-    L_logmuX = LazyTensor(log_dens(KemuX).view(4, -1, 1, 1))
-    L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
-    C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
-    eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
-    log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(1) # has shape (4, NY)
-    P = KesubRhoY.view(1, -1) * torch.exp(beta.view(1, -1)/eps + log_rho.view(4 ,-1))
-
-    # Truncate plan
-    #P[P<YThresh] = 0
-    #I, J = torch.nonzero(P, as_tuple = True)
-    #V = P[I,J]
-    #pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
-    pi = P.cpu().numpy().reshape(4, -1)
-    # Undo offsets, recall:
-    # alpha_domdec = 2*alpha_geomloss - 2<x, offset_x - offset_y>
-    # beta_domdec = 2*beta_geomloss - 2<x, offset_y - offset_x> + (offset_x - offset_y)**2
-
-    alpha = 2*alpha + 2*offset_alpha
-    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
-
-    # Turn alpha and beta into numpy arrays
-    alpha = alpha.cpu().numpy().ravel()
-    beta = beta.cpu().numpy().ravel()
-
     return msg, alpha, beta, pi 
 
 # TODO: BatchDomDecIterationKeopsGrid computes a bounding box that holds all the Y data
