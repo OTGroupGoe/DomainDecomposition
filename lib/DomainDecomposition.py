@@ -475,9 +475,9 @@ def BatchDomDecIteration_KeOpsGrid(\
     #muYCellData,muYCellIndices=arrayAdder.getDataTuple()
     # convert to bounding Box 
     # Replacing original muYCellData and muYCellIndices
-    print("shape: ", shape)
+    #print("shape: ", shape)
     muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
-    print("boxDim:", boxDim)
+    #print("boxDim:", boxDim)
     muYBatch = [item for sublist in muYBatch for item in sublist]
     # Convert to array
     subMuY = muYBatch[::2]
@@ -576,13 +576,13 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Run Sinkhorn iterations
     Niter = 0
     current_error = SinkhornError
-    print("alpha init", KealphaInit)
+    #print("alpha init", KealphaInit)
     alpha = KealphaInit
-    print("a: ", a)
-    print("b: ", b)
-    print("blur: ", blur)
-    print("dx: ", dx)
-    print("a_init: ", alpha)
+    #print("a: ", a)
+    #print("b: ", b)
+    #print("blur: ", blur)
+    #print("dx: ", dx)
+    #print("a_init: ", alpha)
 
     while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
         current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
@@ -609,8 +609,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # KesubMuYEff but we want to change it to KesubRhoY
     print("error: ", current_error)
 
-    print("alpha", alpha.view(4, -1))
-    print("beta", beta)
+    #print("alpha", alpha.view(4, -1))
+    #print("beta", beta)
 
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
@@ -626,7 +626,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     ##########################################################
     # Previous version: compute dense transport plan and convert to sparse matrix, deprecated
     P = torch.exp((alpha.reshape(BatchSize,-1,1) + beta.reshape(BatchSize,1,-1) - 0.5*torch.sum((KeposX.reshape(BatchSize,-1, 1, dim) - KesubPosY.reshape(BatchSize,1, -1, dim))**2, axis = 3))/eps)*KemuX.reshape(BatchSize,-1,1)*KesubRhoY.reshape(BatchSize,1,-1)
-    print("mass of previous version: ", torch.sum(P))
+    #print("mass of previous version: ", torch.sum(P))
     # Truncate plan
 
     # pi =[]
@@ -651,15 +651,15 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
 
     log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(2) # has shape (4, NY), 4 for the number of cells
     log_rho = log_rho.view(BatchSize, 4, -1)
-    print("KeposX", KeposX)
-    print("logmuX", log_dens(KemuX))
-    print("eps", eps)
-    print("Y", KesubPosY)
-    print("L_logmuX: ", torch.sum(log_dens(KemuX).view(4, -1), axis = 1))
-    print("log_rho: ", torch.sum(log_rho, axis = -1))
+    #print("KeposX", KeposX)
+    #print("logmuX", log_dens(KemuX))
+    #print("eps", eps)
+    #print("Y", KesubPosY)
+    #print("L_logmuX: ", torch.sum(log_dens(KemuX).view(4, -1), axis = 1))
+    #print("log_rho: ", torch.sum(log_rho, axis = -1))
     P = torch.exp(beta.view(BatchSize, 1, -1)/eps + log_rho + log_dens(KesubRhoY.view(BatchSize, 1, -1)))
-    print("mass of current version: ", torch.sum(P))
-    print("mass of current version, by cell", torch.sum(P, axis = 2))
+    #print("mass of current version: ", torch.sum(P))
+    #print("mass of current version, by cell", torch.sum(P, axis = 2))
 
     pi = P.cpu().numpy().reshape(BatchSize, 4, -1)
     
