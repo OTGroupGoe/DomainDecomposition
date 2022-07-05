@@ -197,6 +197,8 @@ def BatchIterate(\
     NCells = len(muXList)
     restsize = NCells%BatchSize
     
+    print("test")
+    
     muXListBatch = [[muXList[i] for i in range(BatchSize*j,BatchSize*j+BatchSize)] for j in range(NCells//BatchSize)]
     posXListBatch = [[posXList[i] for i in range(BatchSize*j,BatchSize*j+BatchSize)] for j in range(NCells//BatchSize)]
     alphaListBatch = [[alphaList[i] for i in range(BatchSize*j,BatchSize*j+BatchSize)] for j in range(NCells//BatchSize)]
@@ -217,9 +219,9 @@ def BatchIterate(\
             muXListBatch[i],posXListBatch[i],alphaListBatch[i],\
             [(muYAtomicDataList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
             [(muYAtomicIndicesList[j] for j in partitionDataCompCellsBatch[i][k]) for k in range(currentBatch)],\
-            partitionDataCompCellIndicesBatch[i], SinkhornMaxIter = SinkhornMaxIter, \
-            SinkhornInnerIter=SinkhornInnerIter,\
-            BatchSize = currentBatch)
+            partitionDataCompCellIndicesBatch[i],\
+            SinkhornMaxIter, SinkhornInnerIter,\
+            currentBatch)
 
             # Extract Results from Batch
         for k in range(currentBatch):
@@ -229,8 +231,6 @@ def BatchIterate(\
             for jsub,j in enumerate(partitionDataCompCells[i*BatchSize+k]):
                 muYAtomicDataList[j]=resultMuYAtomicDataList[k][jsub]
                 muYAtomicIndicesList[j]=muYCellIndices[k].copy()
-
-
 # serial implementation of one domdec half-iteration
 def Iterate(\
         muY,posY,eps,\
@@ -241,7 +241,6 @@ def Iterate(\
         SinkhornErrorRel=False, SinkhornMaxIter = None,\
         SinkhornInnerIter = 100, BoundingBox=False): # Introducing bounding box as an additional argument
         #introducing the option to remove epsilon scaling, leave const_iterations at 0 to keep the scalling
-
 
     nCells=len(muXList)
     keops = 0
@@ -276,23 +275,6 @@ def Iterate(\
             for jsub,j in enumerate(partitionDataCompCells[i]):
                 muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
                 muYAtomicIndicesList[j]=muYCellIndices.copy()
-    # elif keops == 2:
-    #     for i in range(nCells):
-    #         if(i%8==0):
-    #             print(i)
-    #         resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_KeOpsGrid(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
-    #                 muXList[i],posXList[i],alphaList[i],\
-    #                 [muYAtomicDataList[j] for j in partitionDataCompCells[i]],\
-    #                 [muYAtomicIndicesList[j] for j in partitionDataCompCells[i]],\
-    #                 partitionDataCompCellIndices[i], SinkhornMaxIter,\
-    #                 BoundingBox)
-    #         alphaList[i]=resultAlpha
-    #         betaDataList[i]=resultBeta
-    #         betaIndexList[i]=muYCellIndices.copy()
-    #         for jsub,j in enumerate(partitionDataCompCells[i]):
-    #             muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
-    #             muYAtomicIndicesList[j]=muYCellIndices.copy()
-
     else:
         for i in range(nCells):
             resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices=DomDecIteration_SparseY(SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,\
@@ -324,6 +306,8 @@ def getPi(c,alpha,beta,rhoX,rhoY,eps):
     pi=np.exp(pi/eps)
     pi=np.einsum(rhoX,[0],rhoY,[1],pi,[0,1],[0,1])
     return pi
+
+#-----------------------------------------------------------------------------------------------------------------------------------------
 
 def SolveOnCell_LogSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14):
     
@@ -359,7 +343,6 @@ def SolveOnCell_LogSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,Si
     pi=getPi(c,alpha,beta,rhoX,subRhoY,eps)
 
     return (msg,alpha,beta,pi)
-
 
 def SolveOnCell_SparseSinkhorn(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,\
         autoEpsFix=True,verbose=True):
@@ -501,51 +484,38 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     dim = posX[0].shape[1]
     cellsize = int(posX[0].shape[0]**(1/dim) / 2)
 
-    # TODO, for L: make everything be a Tensor from the very beginning, instead of making lists of tensors
-    # and then stacking them. Operations between the tensors (for example, substracting offset_x) can be made efficiently
-    # in Tensor form by reshaping the Tensor with an appropriate shape. 
-    
-    #offset is ineffectivly calculated, maybe use smt like posX[:,0,:]
-    offset_x = [posX[i][0,:] for i in range(BatchSize)]
-    KeposX = torch.tensor([posX[i]-offset_x[i] for i in range(BatchSize)]).cuda()
+    offset_x = torch.tensor(np.array(posX)[:,0,:]).cuda().reshape(BatchSize,1,dim)
+    KeposX = torch.tensor(posX).cuda() - offset_x
     KemuX = torch.tensor(muX).cuda()
     KeposY = torch.tensor(posY).cuda()
     KemuY = torch.tensor(subMuY).cuda()
 
-     # Divide by 2 because geomloss uses the cost |x-y|^2/2
-    
     subPosY=[posY[subY[i]].copy() for i in range(BatchSize)]
     subRhoY=[rhoY[subY[i]].copy() for i in range(BatchSize)]
     
     # Why? subMuY should be already normalized!
     subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
-    #subMuYEff = subMuYEff + 1E-30
+
    
     # Y data: to GPU
-    offset_y = [subPosY[i][0,:] for i in range(BatchSize)]
-    KesubPosY = torch.tensor([subPosY[i]-offset_y[i] for i in range(BatchSize)]).cuda() #- offset_y
+    offset_y =  torch.tensor(np.array(subPosY)[:,0,:]).cuda().reshape(BatchSize,1,dim)
+    KesubPosY = torch.tensor(subPosY).cuda() - offset_y
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
-    
-    offset_y = torch.tensor(offset_y).cuda()
-    offset_x = torch.tensor(offset_x).cuda()
+   
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    offset_alpha = torch.stack([torch.sum(KeposX[i]*(offset_x[i] - offset_y[i]), axis = 1).view(-1) for i in range(BatchSize)])
-    offset_beta = torch.stack([torch.sum(KesubPosY[i]*(offset_y[i] - offset_x[i]), axis = 1).view(-1) for i in range(BatchSize)])
-                               
-    #offset_alpha = torch.tensor(offset_alpha).cuda()
-    #offset_beta = torch.tensor(offset_beta).cuda()
-                               
-    KealphaInit = torch.tensor(alphaInit).cuda()/2
-
-    KealphaInit = torch.stack([KealphaInit[i] - offset_alpha[i] for i in range(BatchSize)]).cuda()
+    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 2).view(BatchSize,-1)
+    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(BatchSize,-1)
+    
+    # Divide by 2 because geomloss uses the cost |x-y|^2/2
+    KealphaInit = torch.tensor(alphaInit).cuda()/2 - offset_alpha
    
     # TODO: implement for 3D data!
     assert dim == 2, "Not implemented for dimension other than 2"
+    
     # Dirty fix for "aggregation" of basic cells
-
     KeposX = KeposX.view(BatchSize,2, 2, cellsize, cellsize, dim).permute((0,1,3,2,4,5)).reshape(BatchSize,-1,dim) # here a view is not possible in conjuction with the permute
     KemuX = KemuX.view(BatchSize,2, 2, cellsize, cellsize).permute((0,1,3,2,4)).reshape(BatchSize,-1)
     KealphaInit = KealphaInit.view(BatchSize,2,2,cellsize,cellsize).permute((0,1,3,2,4)).reshape(BatchSize,1,2*cellsize, 2*cellsize)
@@ -556,15 +526,14 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     else:
         effectiveError=SinkhornError
 
-    #TODO generalize this
+    #TODO generalize this  
+    dx = posX[0][1,1] - posX[0][0,1]
     
-    dx = posX[0][1,1] - posX[0][0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
-    
-    # dx =  (len(posX)**1/dim)/2
     # ----------------
     # With new softmin-grid
     # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
     # and then the physical dimensions come
+
     # TODO: same shape as kealpha
     a = KemuX.view((BatchSize,1,2*cellsize,2*cellsize)) 
     b = KemuY.view((BatchSize,1,boxDim[0],boxDim[1]))
@@ -600,6 +569,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
     # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
     # KesubMuYEff but we want to change it to KesubRhoY
+
 
     eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
     beta = beta + eps*log_dens(KesubMuYEff/KesubRhoY + 1E-30) # TODO, for L: check if we can remove this 1E-30
@@ -645,158 +615,11 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Bringing offset back
     alpha = 2*alpha + 2*offset_alpha
     # TODO, for L: This formula is not right, currently giving the same offset to all slices in the batch
-    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
+    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2,axis=2)
     # Turn alpha and beta into numpy arrays
     alpha = alpha.cpu().numpy().reshape(BatchSize, -1)
     #print(alpha)
     beta = beta.cpu().numpy().reshape(BatchSize, -1)
-    return msg, alpha, beta, pi 
-
-
-# muY is added ... check the call
-def SolveOnCellKeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
-    SinkhornError=1E-4,SinkhornErrorRel=False,YThresh=1E-14,autoEpsFix=True,\
-    verbose=True,SinkhornMaxIter = None, SinkhornInnerIter = 100, boxDim = None):
-    
-    assert boxDim is not None, "boxDim argument is necessary for the KeopsGrid routine"
-
-    dim = posX.shape[1]
-    cellsize = int(posX.shape[0]**(1/dim) / 2)
-
-    offset_x = torch.tensor(posX[0,:]).cuda()
-    KeposX = torch.tensor(posX).cuda() - offset_x
-    KemuX = torch.tensor(muX).cuda()
-    KeposY = torch.tensor(posY).cuda()
-    KemuY = torch.tensor(subMuY).cuda()
-    
-    # TODO: this assumes that all cells have shape (2*cellsize, 2*cellsize,...)
-
-    KealphaInit = torch.tensor(alphaInit).cuda() 
-    
-     # Y data: extract
-    subPosY=posY[subY].copy()
-    subRhoY=rhoY[subY].copy()
-    
-    # Why? subMuY should be already normalized!
-    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
-    # subMuYEff = subMuYEff + 1E-30
-   
-    # Y data: to GPU
-    offset_y = torch.tensor(subPosY[0,:]).cuda()
-    KesubPosY = torch.tensor(subPosY).cuda() - offset_y
-    KesubRhoY = torch.tensor(subRhoY).cuda()
-    KesubMuYEff = torch.tensor(subMuYEff).cuda()
-
-    # Offsets in duals
-    # alpha_domdec = 2*alpha_geomloss + 2<x', offset_x - offset_y>
-    # beta_domdec = 2*beta_geomloss + 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 1).view(-1)
-    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 1).view(-1)
-
-    #offset_alpha = 0 
-    #offset_beta = 0
-
-    KealphaInit = KealphaInit/2 - offset_alpha
-
-    assert dim == 2, "Not implemented for dimension other than 2"
-    # Dirty fix for "aggregation" of basic cells
-    KeposX = KeposX.view(2, 2, cellsize, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim) # here a view is not possible in conjuction with the permute
-    KemuX = KemuX.view(2, 2, cellsize, cellsize).permute((0,2,1,3)).reshape(-1)
-    KealphaInit = KealphaInit.view(2,2,cellsize,cellsize).permute((0,2,1,3)).reshape(1, 1, 2*cellsize, 2*cellsize)
-
-    blur = np.sqrt(eps/2)
-    if SinkhornErrorRel:
-        effectiveError=SinkhornError*np.sum(muX)
-    else:
-        effectiveError=SinkhornError
-
-    #TODO generalize this
-    dx = posX[1,1] - posX[0,1] # TODO: only for posX ~ [0 0; 0 1; 1 0; 1 1]
-    # dx =  (len(posX)**1/dim)/2
-    # ----------------
-    # With new softmin-grid
-    # For images, it is assumed that 0th dimension is batch dimension, 1st is channel, 
-    # and then the physical dimensions come
-    # TODO: same shape as kealpha
-    a = KemuX.view((1,1,2*cellsize,2*cellsize)) 
-    b = KemuY.view((1,1,boxDim[0],boxDim[1])) 
-    # TODO: for batch, create tensor of zeros and copy data to each slice. same for alphas
-    
-    KesubMuYEff = KesubMuYEff.view((1,1,boxDim[0],boxDim[1]))
-    KesubRhoY = KesubRhoY.view((1,1,boxDim[0],boxDim[1]))
-
-    #b = b[:,:,:new_N//2,:new_N//2]
-    #b /= torch.sum(b)
-    Niter = 0
-    current_error = SinkhornError
-    alpha = KealphaInit
-    while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
-        current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
-            a,
-            b,
-            p=2,
-            blur=blur,
-            reach=None,
-            axes=None,
-            cost=None,
-            debias=False,
-            potentials=True,
-            verbose=False,
-            multiscale=False,
-            dx=dx, 
-            a_init = alpha, 
-            inner_iter = SinkhornInnerIter
-        )
-        Niter += SinkhornInnerIter
-
-    msg = 0 # TODO: stablish messages in the KeOps solver
-    # Here we change the reference measure so that it is KesubRhoY. One can get this easily from 
-    # writing pi_ij as mu_i * exp((alpha_i + beta_j - c_ij)/eps) * nu_j, where nu_j originally is 
-    # KesubMuYEff but we want to change it to KesubRhoY
-    
-    beta = beta + (blur**2)*log_dens(KesubMuYEff/KesubRhoY) 
-    beta = beta.reshape(-1)
-
-    # Undo the dirty fix for "aggregation" of basic cells
-    # TODO: think carefully how to reimplement this for the batch dimension!
-    KeposX = KeposX.view(2, cellsize, 2, cellsize, dim).permute((0,2,1,3,4)).reshape(-1,dim)
-    KemuX = KemuX.view(2, cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
-    alpha = alpha.view(2,cellsize, 2, cellsize).permute((0,2,1,3)).reshape(-1)
-
-    # Get transport plan
-
-    # P = torch.exp((alpha.reshape(-1,1) + beta.reshape(1,-1) - 0.5*torch.sum((KeposX.reshape(-1, 1, dim) - KesubPosY.reshape(1, -1, dim))**2, axis = 2))/blur**2)*KemuX.reshape(-1,1)*KesubRhoY.reshape(1,-1)
-
-    # Try to compute directly cell marginals
-    L_posX = LazyTensor(KeposX.view(4, -1, 1, dim)) # Indexes are 0: cell, 1: x, 2: y, 3: coordinate
-    L_alpha = LazyTensor(alpha.view(4, -1, 1, 1))
-    L_logmuX = LazyTensor(log_dens(KemuX).view(4, -1, 1, 1))
-    L_posY = LazyTensor(KesubPosY.view(1, 1, -1, dim))
-    C_ij = ((L_posX - L_posY) ** 2).sum(-1) / 2
-    eps = torch.Tensor([blur**2]).type_as(KemuX).cuda()
-    log_rho = (L_logmuX + L_alpha/eps - C_ij/eps).logsumexp(1) # has shape (4, NY)
-    P = KesubRhoY.view(1, -1) * torch.exp(beta.view(1, -1)/eps + log_rho.view(4 ,-1))
-
-    # Truncate plan
-    #P[P<YThresh] = 0
-    #I, J = torch.nonzero(P, as_tuple = True)
-    #V = P[I,J]
-    #pi = csr_matrix((V.cpu(), (I.cpu(),J.cpu())), shape = P.shape)
-    pi = P.cpu().numpy().reshape(4, -1)
-    # Undo offsets, recall:
-    # alpha_domdec = 2*alpha_geomloss - 2<x, offset_x - offset_y>
-    # beta_domdec = 2*beta_geomloss - 2<x, offset_y - offset_x> + (offset_x - offset_y)**2
-    alpha = 2*alpha + 2*offset_alpha
-    beta = 2*beta + 2*offset_beta + torch.sum((offset_x - offset_y)**2)
-
-    # Turn alpha and beta into numpy arrays
-    alpha = alpha.cpu().numpy().ravel()
-    #print(alpha)
-    beta = beta.cpu().numpy().ravel()
-    # Multiply duals by 2 to recover behavior for cost |x-y|^2 # This is done already a bit above!
-    #alpha = 2*alpha
-    #beta = 2*beta
-
     return msg, alpha, beta, pi 
 
 # TODO: BatchDomDecIterationKeopsGrid computes a bounding box that holds all the Y data
@@ -824,8 +647,8 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     KesubPosY = torch.tensor(subPosY).cuda()
     KesubRhoY = torch.tensor(subRhoY).cuda()
     KesubMuYEff = torch.tensor(subMuYEff).cuda()
-    # This is just a quick fix of converting the initial alphas to Tensor Data
 
+    # This is just a quick fix of converting the initial alphas to Tensor Data
     KealphaInit = torch.tensor(alphaInit).cuda()/2 # Divide by 2 because geomloss uses the cost |x-y|^2/2
     
     if SinkhornErrorRel:
@@ -879,21 +702,21 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
     beta = 2*beta
     return msg, alpha, beta, pi 
 
+
+#-----------------------------------------------------------------------------------------------------------------------------------------
+
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
+
         SinkhornMaxIter, SinkhornInnerIter, BoundingBox):
-    #use the bounding_box_2D to speed up operations on GPU
-     # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
+    # use the bounding_box_2D to speed up operations on GPU
+    # new code where sparse vectors are represented index and value list of non-zero entries, with custom c++ code for adding
     arrayAdder=LogSinkhorn.TSparseArrayAdder()
     for x,y in zip(muYAtomicListData,muYAtomicListIndices):
         arrayAdder.add(x,y)
     muYCellData,muYCellIndices=arrayAdder.getDataTuple()
-    
-    # another dummy return and dummy function call
-    #SolveOnCell(muXCell,muYCellData,muYCellIndices,posXCell,posY,muXCell,muY,alphaCell,eps)
-    #return (alphaCell,muYAtomicListData,muYAtomicListIndices[0])
-
+   
     #convert to bounding Box
     boxDim = None 
     if BoundingBox: # Use BoundingBox only if given by the BoundingBox argument. Replacing original muYCellData and muYCellIndices
@@ -904,6 +727,7 @@ def DomDecIteration_KeOps(\
         SinkhornError,SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,SinkhornInnerIter=SinkhornInnerIter, boxDim=boxDim)
     
     # extract new atomic muY
+
     # If pi has shape (NC, -1), with NC the number of basic cells,
     # it is because basic cell marginals have been already extracted
     marginals_extracted = (len(partitionDataCompCellIndices) == pi.shape[0])
@@ -914,8 +738,6 @@ def DomDecIteration_KeOps(\
                 Common.GetPartialYMarginal(pi,range(*indices))
                 for indices in partitionDataCompCellIndices
                 ]
-    
-            
 
     return (resultAlpha,resultBeta,resultMuYAtomicDataList,muYCellIndices)
 
@@ -1519,14 +1341,6 @@ def getHierarchicalKernel(MultiScaleSetupX,MultiScaleSetupY,dim,hierarchy_depth,
         return (dat,newAlpha,newBeta)
 
 from numpy.ma.core import array
-
-
-# TODO: new implementation that works for all cases, using numpy for speed and clearness, well tested.
-# TODO: 3D implementation in 3D, tested as well. Once you have the numpy 2D one, it is mostly taking into account the changes from 
-# linear indexing to cartesian index. For an array of shape (N0, N1, N2):
-# Linear to cartesian: k -> k//(N1*N2), (k%(N1*N2))//N2, k%N2
-# Cartesian to linear: (k1, k2, k3) -> k0*N1*N2 + k1*N2 + k2
-# Please check that these conversions work by testing them in a random 3D array!
 
 def bounding_Box_2D(data,index,matrix_size):
   x_size,y_size = matrix_size
