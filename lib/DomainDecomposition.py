@@ -506,8 +506,8 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
     # beta_domdec = 2*beta_geomloss - 2<y', offset_y - offset_x> + (offset_x - offset_y)**2
-    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 2).view(-1)
-    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(-1)
+    offset_alpha = torch.sum(KeposX*(offset_x - offset_y), axis = 2).view(BatchSize,-1)
+    offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(BatchSize,-1)
     
     # Divide by 2 because geomloss uses the cost |x-y|^2/2
     KealphaInit = torch.tensor(alphaInit).cuda()/2 - offset_alpha
