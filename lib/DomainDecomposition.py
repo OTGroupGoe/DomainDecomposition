@@ -705,43 +705,6 @@ def SolveOnCellKeops(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps,\
 
 #-----------------------------------------------------------------------------------------------------------------------------------------
 
-def BatchDomDecIteration_KeOpsGrid(\
-        SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
-        muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
-        SinkhornMaxIter, BatchSize):
-
-    
-    
-    muYCellData = []
-    muYCellIndices = []
-    for i in range(BatchSize):
-        arrayAdder=LogSinkhorn.TSparseArrayAdder()
-        for x,y in zip(muYAtomicListData[i],muYAtomicListIndices[i]):
-            arrayAdder.add(x,y)
-        muYCellData.append(arrayAdder.getDataTuple()[0])
-        muYCellIndices.append(arrayAdder.getDataTuple()[1])
-        
-    #muYCellData,muYCellIndices=arrayAdder.getDataTuple()
-    
-    # convert to bounding Box 
-    # Replacing original muYCellData and muYCellIndices
-    muYBatch,boxDim = Batch_Bounding_Box_2D(muYCellData,muYCellIndices,shape) 
-    muYBatch = [item for sublist in muYBatch for item in sublist]
-    subMuY = muYBatch[::2]
-    subY = muYBatch[1::2]
-    
-    msg,resultAlpha,resultBeta,pi=BatchSolveOnCell_KeopsGrid(muXCell,subMuY,subY,posXCell,posY,muXCell,muY,alphaCell,eps,SinkhornError,SinkhornErrorRel, SinkhornMaxIter = SinkhornMaxIter,boxDim=boxDim, BatchSize=BatchSize)
-    
-    resultMuYAtomicDataList = []
-    # extract new atomic muY
-    for i in range(BatchSize):
-        resultMuYAtomicDataList.append([\
-            Common.GetPartialYMarginal(pi[i],range(*indices))
-            for indices in partitionDataCompCellIndices[i]
-            ])
-
-    return (resultAlpha,resultBeta,resultMuYAtomicDataList,subY)
-
 def DomDecIteration_KeOps(\
         SolveOnCell,SinkhornError,SinkhornErrorRel,muY,posY,eps,shape,\
         muXCell,posXCell,alphaCell,muYAtomicListData,muYAtomicListIndices,partitionDataCompCellIndices,\
