@@ -512,7 +512,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(BatchSize,-1)
     
     # Divide by 2 because geomloss uses the cost |x-y|^2/2
-    KealphaInit = torch.tensor(alphaInit).cuda()/2 - offset_alpha
+    KealphaInit = torch.tensor(np.array(alphaInit)).cuda()/2 - offset_alpha
    
     # TODO: implement for 3D data!
     assert dim == 2, "Not implemented for dimension other than 2"
