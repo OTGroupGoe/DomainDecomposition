@@ -484,24 +484,26 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     dim = posX[0].shape[1]
     cellsize = int(posX[0].shape[0]**(1/dim) / 2)
 
-    offset_x = torch.tensor(np.array(posX)[:,0,:]).cuda().reshape(BatchSize,1,dim)
-    KeposX = torch.tensor(posX).cuda() - offset_x
-    KemuX = torch.tensor(muX).cuda()
-    KeposY = torch.tensor(posY).cuda()
-    KemuY = torch.tensor(subMuY).cuda()
+    KeposX = torch.tensor(np.array(posX)).cuda()
+    offset_x = KeposX[:,0,:].reshape(BatchSize,1,dim)
+    KeposX = KeposX - offset_x
+    KemuX = torch.tensor(np.array(muX)).cuda()
+    KeposY = torch.tensor(np.array(posY)).cuda()
+    KemuY = torch.tensor(np.array(subMuY)).cuda()
 
     subPosY=[posY[subY[i]].copy() for i in range(BatchSize)]
     subRhoY=[rhoY[subY[i]].copy() for i in range(BatchSize)]
     
     # Why? subMuY should be already normalized!
-    subMuYEff=subMuY/np.sum(subMuY)*np.sum(muX)
+    KesubMuYEff=KemuY/torch.sum(KemuY)*torch.sum(KemuX)
 
    
     # Y data: to GPU
-    offset_y =  torch.tensor(np.array(subPosY)[:,0,:]).cuda().reshape(BatchSize,1,dim)
-    KesubPosY = torch.tensor(subPosY).cuda() - offset_y
-    KesubRhoY = torch.tensor(subRhoY).cuda()
-    KesubMuYEff = torch.tensor(subMuYEff).cuda()
+    KeposY = torch.tensor(np.array(subPosY)).cuda()
+    offset_y =  KeposY[:,0,:].reshape(BatchSize,1,dim)
+    KesubPosY = KeposY - offset_y
+    KesubRhoY = torch.tensor(np.array(subRhoY)).cuda()
+    # KesubMuYEff = torch.tensor(subMuYEff).cuda()
    
     # Offsets in duals
     # alpha_domdec = 2*alpha_geomloss - 2<x', offset_x - offset_y>
@@ -510,7 +512,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     offset_beta = torch.sum(KesubPosY*(offset_y - offset_x), axis = 2).view(BatchSize,-1)
     
     # Divide by 2 because geomloss uses the cost |x-y|^2/2
-    KealphaInit = torch.tensor(alphaInit).cuda()/2 - offset_alpha
+    KealphaInit = torch.tensor(np.array(alphaInit)).cuda()/2 - offset_alpha
    
     # TODO: implement for 3D data!
     assert dim == 2, "Not implemented for dimension other than 2"
