@@ -4,7 +4,7 @@ import os
 import sys
 import time
 
-repo = "DomainDecomposition"
+repo = "../"
 sys.path.append(repo)
 
 from lib.header_script import *
@@ -30,7 +30,7 @@ config_file = sys.argv[1]
 file_params = json.load(open(config_file,"r"))
 
 
-datadir = r"{}/data/".format(repo)
+datadir = r"../data/"
 
 def importData(fn):
     try:
