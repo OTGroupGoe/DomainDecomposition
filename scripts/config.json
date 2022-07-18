@@ -1,0 +1,7 @@
+{
+    "N": 64, 
+    "domdec_cellsize": 16,
+    "keops_batchsize": 64,
+    "sinkhorn_inner_iter": 20,
+    "sinkhorn_max_iter": 1000
+}
