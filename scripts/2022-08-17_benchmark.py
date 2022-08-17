@@ -116,7 +116,7 @@ eps = 2*(1024/N)**2
 
 datafile = "problem0_{}.mat".format(N)
 
-f = h5py.File(datafile,'r+')
+f = h5py.File(datadir + datafile,'r+')
 
 #load Data
 I = np.array(f["I"], dtype = np.int64)
