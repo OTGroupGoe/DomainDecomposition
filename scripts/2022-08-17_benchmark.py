@@ -238,8 +238,9 @@ DomDec.BatchIterate(muY,posY,eps,\
                   muXAList,posXAList,alphaAList,betaADataList,betaAIndexList,shapeY,\
                   "SolveOnCellKeopsGrid", params["sinkhorn_error"],\
                   False,\
-                  SinkhornMaxIter = maxIter
-                  , BatchSize = batchsize
+                  SinkhornMaxIter = maxIter, 
+                  SinkhornInnerIter = params["sinkhorn_inner_iter"],
+                  BatchSize = batchsize
                   )
 
 # balancing
@@ -257,7 +258,9 @@ DomDec.BatchIterate(muY,posY,eps,\
                   muXBList,posXBList,alphaBList,betaBDataList,betaBIndexList,shapeY,\
                   "SolveOnCellKeopsGrid", params["sinkhorn_error"],\
                   False,\
-                  SinkhornMaxIter = maxIter, BatchSize = batchsize
+                  SinkhornMaxIter = maxIter, 
+                  SinkhornInnerIter = params["sinkhorn_inner_iter"],
+                  BatchSize = batchsize
                   )
 
 # balancing
@@ -275,7 +278,9 @@ DomDec.BatchIterate(muY,posY,eps,\
                   muXAList,posXAList,alphaAList,betaADataList,betaAIndexList,shapeY,\
                   "SolveOnCellKeopsGrid", params["sinkhorn_error"],\
                   False,\
-                  SinkhornMaxIter = maxIter, BatchSize = batchsize
+                  SinkhornMaxIter = maxIter, 
+                  SinkhornInnerIter = params["sinkhorn_inner_iter"],
+                  BatchSize = batchsize
                   )
 
 # balancing
@@ -293,7 +298,9 @@ DomDec.BatchIterate(muY,posY,eps,\
                   muXBList,posXBList,alphaBList,betaBDataList,betaBIndexList,shapeY,\
                   "SolveOnCellKeopsGrid", params["sinkhorn_error"],\
                   False,\
-                  SinkhornMaxIter = maxIter, BatchSize = batchsize
+                  SinkhornMaxIter = maxIter, 
+                  SinkhornInnerIter = params["sinkhorn_inner_iter"],
+                  BatchSize = batchsize
                   )
 
 # visualize_deformation_map(muYAtomicIndicesList, muYAtomicDataList, partitionDataBCompCells, muY, N)
