@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 import h5py
 import json
 import numpy as np
+import scipy.io as io
 
 config_file = sys.argv[1]
 
@@ -340,5 +341,4 @@ results = {
 # with open(dump1, 'wb') as f:
 #   pickle.dump(largedict,f)
 
-with open(resultsdir + id + ".pickle", 'wb') as f:
-  pickle.dump(results,f)
+io.savemat(resultsdir + id + ".mat", results)
