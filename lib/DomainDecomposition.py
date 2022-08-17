@@ -548,6 +548,7 @@ def BatchSolveOnCell_KeopsGrid(muX,subMuY,subY,posX,posY,rhoX,rhoY,alphaInit,eps
     Niter = 0
     current_error = SinkhornError
     alpha = KealphaInit
+    beta = 0 # In case Niter = 0, not give error
     while (Niter < SinkhornMaxIter) and (current_error >= SinkhornError):
         current_error, (alpha,beta) = geomloss.sinkhorn_images.sinkhorn_divergence_two_grids(
             a,
