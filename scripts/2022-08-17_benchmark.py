@@ -105,9 +105,6 @@ params = getDefaultParams()
 
 params = {**params, **file_params}
 
-with open(config) as f2:
-  data = json.load(f)
-
 N = params["N"]
 cellsize = params["domdec_cellsize"]
 batchsize = params["keops_batchsize"]
