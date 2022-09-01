@@ -33,7 +33,9 @@ id = sys.argv[5]
 
 file_params = json.load(open(config_file,"r"))
 
-datadir = r"../data/"
+#datadir = r"../data/"
+
+print("imports")
 
 def getPrimalInfos(muY,posY,posXList,muXList,alphaList,betaDataList,betaIndexList,eps,getMuYList=True):
 
@@ -41,7 +43,7 @@ def getPrimalInfos(muY,posY,posXList,muXList,alphaList,betaDataList,betaIndexLis
     scorePrimal=0.
     errorMargX=0.
     errorMargY=0.
-    
+
     if getMuYList:
         muYList=[]
 
@@ -58,52 +60,48 @@ def getPrimalInfos(muY,posY,posXList,muXList,alphaList,betaDataList,betaIndexLis
 
         cEff=c.reshape((xresCell,yresCell))-alphaList[i].reshape((-1,1))-betaDataList[i].reshape((1,-1))
 
-
         piCell=np.einsum(np.exp(-cEff/eps),[0,1],muXList[i],[0],muY[betaIndexList[i]],[1],[0,1])
         cellPlans.append(piCell)
 
         scorePrimalUnreg+=np.sum(piCell.ravel()*c)
-        
+
         scorePrimal+=np.einsum(piCell,[0,1],alphaList[i],[0],[])\
                 +np.einsum(piCell,[0,1],betaDataList[i],[1],[])\
                 -eps*np.sum(piCell)
-                
-        
+
         errorMargX+=np.sum(np.abs(np.sum(piCell,axis=1)-muXList[i]))
         margY[betaIndexList[i]]+=np.sum(piCell,axis=0)
-        
+
         if getMuYList:
             muYList.append(np.sum(piCell,axis=0))
 
-
     errorMargY=np.sum(np.abs(muY-margY))
-    
+
     result={"scorePrimal":scorePrimal, "scorePrimalUnreg":scorePrimalUnreg,"errorMargX":errorMargX,"errorMargY":errorMargY}
-    
+
     if getMuYList:
         return (result,muYList)
-    
-    return result, cellPlans
+
+    return result
 
 def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
 
+  print("start Code")
+
   timeStamp1 = time.time()
 
-  params = {**params, **file_params}
+  n = file_params["N"]
+  cellsize = file_params["domdec_cellsize"]
+  batchsize = file_params["keops_batchsize"]
+  innerIter = file_params["sinkhorn_inner_iter"]
+  maxIter = file_params["sinkhorn_max_iter"]
 
-  with open(config) as f2:
-    data = json.load(f)
-
-  n = params["N"]
-  cellsize = params["domdec_cellsize"]
-  batchsize = params["keops_batchsize"]
-  innerIter = params["sinkhorn_inner_iter"]
-  maxIter = params["sinkhorn_max_iter"]
+  N=n
 
   dim = 2
   eps = 2*(1024/n)**2
 
-  f = h5py.File(file,'r+')
+  f = h5py.File(file1,'r+')
 
   #load Data
   I = np.array(f["I"], dtype = np.int64)
@@ -127,11 +125,16 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
   X1_pad = np.repeat(x_pad.reshape(1, -1),(n+2*cellsize), axis = 0).reshape(-1,1)
   posX = np.concatenate((X0_pad, X1_pad), axis = 1)
 
+  linear_indices = np.arange((n+2*cellsize)**2)
+  cartesian0 = linear_indices % (n+2*cellsize)-cellsize
+  cartesian1 = linear_indices // (n+2*cellsize)-cellsize
+  original_indices = linear_indices[(0 <= cartesian0) & (cartesian0 < N) & (0 <= cartesian1) & (cartesian1 < n)]
+
   #get the padded plan
 
-  padded_plan = sp.csr_matrix(((N+2*cellsize)**2, N**2))
+  padded_plan = sp.csr_matrix(((n+2*cellsize)**2, n**2))
   padded_plan.indices = pi_sp.indices # Column indices of the values are the same (Y remains unchanged)
-  padded_plan.indptr = np.full((N+2*cellsize)**2+1, -1) # Init indptr to -1, to detect new slots
+  padded_plan.indptr = np.full((n+2*cellsize)**2+1, -1) # Init indptr to -1, to detect new slots
   padded_plan.indptr[0] = 0 # Initialize sparse matrix indptr origin
   padded_plan.indptr[original_indices+1] = pi_sp.indptr[1:] # Copy indptr to repesctive places
   padded_plan.data = pi_sp.data
@@ -158,9 +161,9 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
   shapeX = (n+2*cellsize, n+2*cellsize)
   dim=len(shapeX)
 
-
   atomicCells=DomDec.GetPartitionIndices2D(shapeX,cellsize,0)
   metaCellShape=[i//cellsize for i in shapeX]
+
   partitionMetaCellsA=DomDec.GetPartitionIndices2D(metaCellShape,2,1)
   partitionMetaCellsB=DomDec.GetPartitionIndices2D(metaCellShape,2,0)
 
@@ -173,8 +176,8 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
   partitionDataACompCells=partitionDataA[1]
   partitionDataACompCellIndices=[np.array([partitionDataA[2][j][1:3] for j in x],dtype=np.int32) for x in partitionDataACompCells]
   partitionDataBCompCells=partitionDataB[1]
-  partitionDataBCompCellIndices=[np.array([partitionDataB[2][j][1:3] for j in x],dtype=np.int32) for x in partitionDataBCompCells]
 
+  partitionDataBCompCellIndices=[np.array([partitionDataB[2][j][1:3] for j in x],dtype=np.int32) for x in partitionDataBCompCells]
   muXAList=[muX[cell].copy() for cell in partitionDataA[0]]
   muXBList=[muX[cell].copy() for cell in partitionDataB[0]]
 
@@ -184,6 +187,7 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
   # New way of computing cell marginals
   muYAtomicDataList = []
   muYAtomicIndicesList = []
+
   for atomic_indices in atomicCells:
     # Get all indices and values corresponding to the atomic cell
     y_indices = np.concatenate([padded_plan.indices[padded_plan.indptr[j]:padded_plan.indptr[j+1]] for j in atomic_indices])
@@ -195,7 +199,6 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
     muYAtomicDataList.append(nui[nzi])
     muYAtomicIndicesList.append(nzi)
 
-  
 
   # truncation
   for i in range(len(atomicCells)):
@@ -231,7 +234,7 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
   # truncation
   for i in range(len(atomicCells)):
     muYAtomicDataList[i],muYAtomicIndicesList[i]=Common.truncateSparseVector(muYAtomicDataList[i],muYAtomicIndicesList[i],1E-15)
-
+  print("A1 done")
   timeStamp3 = time.time()
 
   # B1 iteration
@@ -250,6 +253,7 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
   for i in range(len(atomicCells)):
     muYAtomicDataList[i],muYAtomicIndicesList[i]=Common.truncateSparseVector(muYAtomicDataList[i],muYAtomicIndicesList[i],1E-15)
 
+  print("B1 done")
   timeStamp4 = time.time()
 
   # A2 iteration
@@ -268,6 +272,7 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
   for i in range(len(atomicCells)):
     muYAtomicDataList[i],muYAtomicIndicesList[i]=Common.truncateSparseVector(muYAtomicDataList[i],muYAtomicIndicesList[i],1E-15)
 
+  print("A2 done")
   timeStamp5 = time.time()
 
   # B2 iteration
@@ -279,21 +284,19 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
                     False,\
                     SinkhornMaxIter = maxIter, BatchSize = batchsize
                     )
-  
-  visualize_deformation_map(muYAtomicIndicesList, muYAtomicDataList, partitionDataBCompCells, muY, n)
 
   # balancing
-  DomDec.BalanceMeasuresMultiAll(muYAtomicDataList,atomicCellMasses,partitionDataBCompCells,verbose=True)
-  # truncation
+  DomDec.BalanceMeasuresMultiAll(muYAtomicDataList,atomicCellMasses,partitionDataBCompCells,verbose=True)  # truncation
   for i in range(len(atomicCells)):
     muYAtomicDataList[i],muYAtomicIndicesList[i]=Common.truncateSparseVector(muYAtomicDataList[i],muYAtomicIndicesList[i],1E-15)
 
+  print("B2 done")
   timeStamp6 = time.time()
 
   largedict = {
       "id": testID,
       "muYAtomicDataList": muYAtomicDataList,
-      "muYAtomicIndicesList": muYAtomicIndicesList,
+      "muYAtomicIndicesList": muYAtomicIndicesList
       "alphaBList": alphaBList,
       "betaBDataList": betaBDataList,
       "betaBIndexList": betaBIndexList,
@@ -301,23 +304,24 @@ def benchmark2D(file1,dump1,dump2,file_params,testID,error = 0.0001):
 
   smalldict = {
       "id": testID,
-      "start": timeStamp1,
-      "setupEnd": timeStamp2,
-      "AIteration1": timeStamp3,
-      "BIteration1": timeStamp4,
-      "AIteration2": timeStamp5,
-      "BIteration2": timeStamp6,
-      "primalScore": getPrimalInfos(muY,posY,posXAList,muXAList,alphaAList,betaADataList,betaAIndexList,eps,getMuYList=False)
+      "setupEnd": timeStamp2 - timeStamp1,
+      "AIteration1": timeStamp3 - timeStamp1,
+      "BIteration1": timeStamp4 - timeStamp1,
+      "AIteration2": timeStamp5 - timeStamp1,
+      "BIteration2": timeStamp6 - timeStamp1,
   }
+
+#"primalScore": getPrimalInfos(muY,posY,posXAList,muXAList,alphaAList,betaADataList,betaAIndexList,eps,getMuYList=False)
 
   #where to dump?
 
   with open(dump1, 'wb') as f:
-    pickle.dump(largedict,f)
+    pickle.dump(largedict,f, protocol=2)
 
   with open(dump2, 'wb') as f:
-    pickle.dump(smalldict,f)
+    pickle.dump(smalldict,f,protocol=2)
 
   return
 
-  benchmark2D(file1,dump1,dump2,file_params,id)
+benchmark2D(file1,dump1,dump2,file_params,id)
+print("done")
