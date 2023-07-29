@@ -38,10 +38,10 @@ def batch_cell_marginals_2D(marg_indices, marg_data, shapeY):
     # TODO: generalize to 3D
     # Initialize structs to hold the data of all marginals
     B = len(marg_indices)
-    left = np.zeros(B, dtype = np.int64)
-    bottom = np.zeros(B, dtype = np.int64)
-    width = np.zeros(B, dtype = np.int64)
-    height = np.zeros(B, dtype = np.int64)
+    left = np.zeros(B, dtype = np.int32)
+    bottom = np.zeros(B, dtype = np.int32)
+    width = np.zeros(B, dtype = np.int32)
+    height = np.zeros(B, dtype = np.int32)
     idx = []
     idy = []
 
@@ -120,6 +120,7 @@ def unpack_cell_marginals_2D_gpu(Nu_basic, left, bottom, shapeY, threshold = 1e-
             #idx, idy = np.nonzero(Nu_basic[k, i])
             idx, idy = np.nonzero(Nu_basic[k,i] > threshold)
             linear_id = (idx+left[k])*n + idy + bottom[k]
+            print(left.dtype, bottom.dtype, linear_id.dtype)
             marg_indices.append(linear_id)
             marg_data.append(Nu_basic[k, i, idx, idy])
     return marg_indices, marg_data
@@ -292,7 +293,7 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
         B = X.shape[0]
         dim = X.shape[-1]
         C = ((X.view(B, -1, 1, dim) - Y.view(B, 1, -1, dim))**2).sum(dim = -1)
-        return C
+        return C, X, Y
     
     def get_dense_plan(self, ind = None, C = None):
         """
@@ -304,7 +305,7 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
             ind = slice(None,)
         
         if C == None:
-            C = self.get_dense_cost(ind)
+            C, _, _ = self.get_dense_cost(ind)
         
         B = C.shape[0]
         alpha, beta = self.alpha[ind], self.beta[ind]     
@@ -324,6 +325,39 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
         self.offsetY = self.offsetY * (self.eps / new_eps)
         self.offset_const = self.offset_const * (self.eps / new_eps)
         self.eps = new_eps
+
+    def get_dx(self):
+        return self.C[0]
+        
+def convert_to_basic_2D(A, basic_grid_shape, cellsize):
+    """
+    A is a tensor of shape (B, m1, m2, *(rem_shape)), where
+    B = prod(basic_grid_shape)/4
+    m1 = m2 = 2*cellsize
+    """
+    B, m1, m2 = A.shape[:3]
+    rem_shape = A.shape[3:] # Rest of the shape, that we will not change
+    sb1, sb2 = basic_grid_shape
+    assert 4*B == sb1*sb2, "Batchsize does not match basic grid"
+    assert m1 == m2 == 2*cellsize, "Problem size does not mach cellsize"
+    new_shape = (sb1, sb2, cellsize, cellsize, *rem_shape)
+    # Permute dimensions to make last X dimension that inner to cell
+    A_res = A.view(sb1//2, sb2//2, 2, cellsize, 2, cellsize, -1).permute(0,2,1,4,3,5,6)
+    A_res = A_res.reshape(new_shape)
+    return A_res
+
+def convert_to_batch_2D(A):
+    """
+    A is a tensor of shape (sb1, sb2, cellsize, cellsize, *(rem_shape))
+    """
+    sb1, sb2, cellsize = A.shape[:3]
+    rem_shape = A.shape[4:]
+    new_shape = (sb1*sb2//4, 2*cellsize, 2*cellsize, *rem_shape)
+    A_res = A.view(sb1//2, 2, sb2//2, 2, cellsize, cellsize, -1)
+    A_res = A_res.permute(0,2,1,4,3,5,6).reshape(new_shape)
+    return A_res
+
+
 
 def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     """
@@ -454,7 +488,7 @@ def BatchDomDecIteration_CUDA(\
     posYCell = get_grid_cartesian_coordinates(left_cuda, bottom_cuda, width, height, dx)
 
     # 4. get muY on the positions of muYCell (refNu)
-    # TODO: for now just copy muYCell
+    # TODO: compute reference measure
     subMuY = muYCell
     
     # 5. Solve problem
@@ -499,9 +533,9 @@ def BatchSolveOnCell_CUDA(muXCell, muYCell, posX, posY, eps, alphaInit, muYref,
 
     msg = solver.iterate_until_max_error()
 
-
     alpha = solver.alpha 
     beta = solver.beta 
+
     # Compute cell marginals directly
     pi_basic = get_cell_marginals(muXCell, muYref, alpha, beta, posX, posY, eps)
 
