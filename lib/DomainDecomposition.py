@@ -634,6 +634,14 @@ def BalanceMeasuresMulti(muYAtomicListSub,atomicCellMassesSub,threshStep=1E-16,t
                 return (0,muYAtomicListSub)
     return (1,muYAtomicListSub)
 
+def GetActualYMarginal(muYAtomicIndicesList, muYAtomicDataList, N):
+    """
+    Compute current Y marginal based on basic cell marginals.
+    """
+    piY = np.zeros(N)
+    for (indices, data) in zip(muYAtomicIndicesList, muYAtomicDataList):
+        piY[indices] += data
+    return piY
 
 def BalanceMeasuresMultiAll(muYAtomicDataList,atomicCellMasses,partitionDataCompCells,verbose=False,threshTerminate=1e-6):
     for i in range(len(partitionDataCompCells)):
