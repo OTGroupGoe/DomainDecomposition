@@ -80,12 +80,12 @@ def batch_cell_marginals_2D(marg_indices, marg_data, shapeY, muY):
     Nuref_box = np.zeros((B, max_width, max_height))
 
     # Fill NuJ
-    for (i, data) in enumerate(marg_data):
-        Nu_box[i, idx[i], idy[i]] = data
+    for (k, data) in enumerate(marg_data):
+        Nu_box[k, idx[k], idy[k]] = data
         # Copy reference measure
-        i0, i1 = left[i], left[i] + width[i]
-        j0, j1 = bottom[i], bottom[i] + height[i]
-        Nuref_box[i, :, :] = muY[i0:i1, j0:j1]
+        i0, w = left[k], width[k]
+        j0, h = bottom[k], height[k]
+        Nuref_box[k,:w,:h] = muY[i0:i0+w, j0:j0+h]
 
     # Return NuJ together with bounding box data (they will be needed for unpacking)
     return Nu_box, Nuref_box, left, bottom, max_width, max_height
@@ -505,7 +505,7 @@ def BatchIterate(
 
         # Solve batch
         resultAlpha, resultBeta, resultMuYAtomicDataList, \
-            resultMuYCellIndicesList, solver = BatchDomDecIteration_CUDA(
+            resultMuYCellIndicesList, info = BatchDomDecIteration_CUDA(
                 SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
                 muXBatch, posXBatch, alphaBatch,
                 [(muYAtomicDataList[j] for j in J)
@@ -532,7 +532,7 @@ def BatchIterate(
                 muYAtomicDataList[b] = resultMuYAtomicDataList[lenJ*k + j]
                 muYAtomicIndicesList[b] = resultMuYCellIndicesList[lenJ*k + j]
 
-    return alphaJ, muYAtomicIndicesList, muYAtomicDataList, solver
+    return alphaJ, muYAtomicIndicesList, muYAtomicDataList, info
     # for jsub,j in enumerate(partitionDataCompCellsBatch):
     #     muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
     #     muYAtomicIndicesList[j]=muYCellIndices.copy()
@@ -559,11 +559,12 @@ def BatchDomDecIteration_CUDA(
     # TODO: for Sang: muYCell are not relevant for unbalanced domdec, what one
     # needs here are the nu_minus. subMuY is the reference measure
     muYCell, subMuY, left, bottom, width, height = batch_cell_marginals_2D(
-        muYCellIndices, muYCellData, shapeY
+        muYCellIndices, muYCellData, shapeY, muY
     )
-    # Turn muYCell, left and bottom into tensor
+    # Turn muYCell, left, bottom and subMuY into tensor
     device = muXCell.device
     muYCell = torch.tensor(muYCell, device=device, dtype=torch.float32)
+    subMuY = torch.tensor(subMuY, device=device, dtype=torch.float32)
     left_cuda = torch.tensor(left, device=device)
     bottom_cuda = torch.tensor(bottom, device=device)
 
@@ -573,7 +574,7 @@ def BatchDomDecIteration_CUDA(
     )
 
     # 4. Solve problem
-    msg, resultAlpha, resultBeta, Nu_basic, solver = BatchSolveOnCell_CUDA(
+    resultAlpha, resultBeta, Nu_basic, info = BatchSolveOnCell_CUDA(
         muXCell, muYCell, posXCell, posYCell, eps, alphaCell, subMuY,
         SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,
         SinkhornInnerIter=SinkhornInnerIter
@@ -596,7 +597,7 @@ def BatchDomDecIteration_CUDA(
     # for i in range(BatchSize):
     #     resultMuYAtomicDataList.append([np.array(pi[i,j]) for j in range(pi.shape[1])])
 
-    return resultAlpha, resultBeta, MuYAtomicDataList, MuYAtomicIndicesList, solver
+    return resultAlpha, resultBeta, MuYAtomicDataList, MuYAtomicIndicesList, info
 
 
 def BatchSolveOnCell_CUDA(
@@ -632,4 +633,10 @@ def BatchSolveOnCell_CUDA(
         muXCell, muYref, alpha, beta, posX, posY, eps
     )
 
-    return msg, alpha, beta, pi_basic, solver
+    # Wrap solver and possibly runtime info into info dictionary
+    info = {
+        "solver": solver, 
+        "msg": msg
+    }
+
+    return alpha, beta, pi_basic, info
