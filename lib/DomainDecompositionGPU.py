@@ -26,7 +26,8 @@ def pad_array(a, padding, pad_value=0):
 
 def reformat_indices_2D(index, shapeY):
     """
-    Takes linear indices and tuple of the total shapeY, and returns parameters encoding the bounding box.
+    Takes linear indices and tuple of the total shapeY, and returns parameters 
+    encoding the bounding box.
     """
     # TODO: generalize to 3D
     _, n = shapeY
@@ -47,8 +48,9 @@ def reformat_indices_2D(index, shapeY):
 
 def batch_cell_marginals_2D(marg_indices, marg_data, shapeY, muY):
     """
-    Reshape marginals to a rectangle, find the biggest of all of these and concatenate all marginals
-    along a batch dimension. Copy reference measure `muY` to these bounding boxes.
+    Reshape marginals to a rectangle, find the biggest of all of these and 
+    concatenate all marginals along a batch dimension. 
+    Copy reference measure `muY` to these bounding boxes.
     """
     # TODO: generalize to 3D
     # Initialize structs to hold the data of all marginals
@@ -62,8 +64,8 @@ def batch_cell_marginals_2D(marg_indices, marg_data, shapeY, muY):
 
     # Get bounding boxes for all marginals
     for (i, indices) in enumerate(marg_indices):
-        left[i], bottom[i], width[i], height[i], idx_i, idy_i = reformat_indices_2D(
-            indices, shapeY)
+        left[i], bottom[i], width[i], height[i], idx_i, idy_i = \
+            reformat_indices_2D(indices, shapeY)
         idx.append(idx_i)
         idy.append(idy_i)
 
@@ -95,7 +97,8 @@ def unpack_cell_marginals_2D(Nu_basic, left, bottom, shapeY, threshold=1e-15):
     """
     # TODO: generalize to 3D
     # TODO: incorporate balancing
-    # Nu_basic is of size (B, 4, w, h), because there are 4 basic cells per composite cell
+    # Nu_basic is of size (B, 4, w, h), because there are 4 basic cells per
+    # composite cell
     _, n = shapeY
     # Do all the process in the cpu
     B = Nu_basic.shape[0]
@@ -120,7 +123,8 @@ def unpack_cell_marginals_2D_gpu(Nu_basic, left, bottom, shapeY, threshold=1e-15
     """
     # TODO: generalize to 3D
     # Assumes Nu_basic still in GPU
-    # Nu_basic is of size (B, 4, w, h), because there are 4 basic cells per composite cell
+    # Nu_basic is of size (B, 4, w, h), because there are 4 basic cells per
+    # composite cell
     _, n = shapeY
     # Do all the process in the cpu
     B = Nu_basic.shape[0]
@@ -157,14 +161,15 @@ def batch_balance(muXCell, Nu_basic):
     atomic_mass = atomic_mass.view(B, -1).cpu().numpy()
     for k in range(B):
         status, Nu_basic[k] = DomDec.BalanceMeasuresMulti(
-            Nu_basic[k], atomic_mass[k], 1e-12, 1e-7)
+            Nu_basic[k], atomic_mass[k], 1e-12, 1e-7
+        )
     return Nu_basic
 
 
 def get_grid_cartesian_coordinates(left, bottom, w, h, dx):
     """
-    Generate the cartesian coordinates of the boxes with bottom-left corner given by (left, bottom) (vectors),
-    with width w, height h and spacing dx.
+    Generate the cartesian coordinates of the boxes with bottom-left corner 
+    given by (left, bottom) (vectors), with width w, height h and spacing dx.
     i0 : torch.tensor
     j0 : torch.tensor
     w : int
@@ -206,8 +211,8 @@ def batch_shaped_cartesian_prod(xs):
 def compute_offsets_sinkhorn_grid(xs, ys, eps):
     """
     Compute offsets
-    xs and ys are d-tuples of tensors with shape (B, Mi) where B is the batch dimension
-    and Mi the size of the grid in that coordinate
+    xs and ys are d-tuples of tensors with shape (B, Mi) where B is the batch 
+    dimension and Mi the size of the grid in that coordinate
     # TODO: ref
     """
     # Get cartesian prod
@@ -218,15 +223,15 @@ def compute_offsets_sinkhorn_grid(xs, ys, eps):
     Ns = Y.shape[1:-1]
 
     # Get "bottom left" corner coordinates: select slice (:, 0, ..., 0, :)
-    X0 = X[(slice(None),) + (0,)*dim + (slice(None),)
-           ].view((B,) + (1,)*dim + (dim,))
-    Y0 = Y[(slice(None),) + (0,)*dim + (slice(None),)
-           ].view((B,) + (1,)*dim + (dim,))
+    X0 = X[(slice(None),) + (0,)*dim + (slice(None),)] \
+        .view((B,) + (1,)*dim + (dim,))  # NOTE alternatively: use unpack op.
+    Y0 = Y[(slice(None),) + (0,)*dim + (slice(None),)] \
+        .view((B,) + (1,)*dim + (dim,))  # NOTE alternatively: use unpack op.
 
     # Use the formulas in [TODO: ref] to compute the offset
     offsetX = torch.sum(2*(X-X0)*(Y0-X0), dim=-1)/eps
     offsetY = torch.sum(2*(Y-Y0)*(X0-Y0), dim=-1)/eps
-    offset_constant = - torch.sum((X0-Y0)**2, dim=-1)/eps
+    offset_constant = -torch.sum((X0-Y0)**2, dim=-1)/eps
     return offsetX, offsetY, offset_constant
 
 ##############################################################
@@ -237,29 +242,37 @@ def compute_offsets_sinkhorn_grid(xs, ys, eps):
 
 class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
     """
-    Online Sinkhorn solver for standard OT on images with separable cost, custom CUDA implementation. 
+    Online Sinkhorn solver for standard OT on images with separable cost, 
+    custom CUDA implementation. 
     Each Sinkhorn iteration has complexity N^(3/2), instead of the usual N^2. 
 
     Attributes
     ----------
-    mu : torch.Tensor of size (B, M1, M2)
+    mu : torch.Tensor 
+        of size (B, M1, M2)
         First marginals
-    nu : torch.Tensor of size (B, N1, N2)
+    nu : torch.Tensor 
+        of size (B, N1, N2)
         Second marginals 
-    C  : tuple of the form ((x1, x2), (y1, y2))
+    C : tuple 
+        of the form ((x1, x2), (y1, y2))
         Grid coordinates
     eps : float
         Regularization strength
-    muref : torch.Tensor with same dimensions as mu (except axis 0, which can have len = 1)
-        First reference measure for the Gibbs energy, i.e. K = muref \otimes nuref exp(-C/eps)
-    nuref : torch.Tensor with same dimensions as nu (except axis 0, which can have len = 1)
-        Second reference measure for the Gibbs energy, i.e. K = muref \otimes nuref exp(-C/eps)
-    alpha_init : torch.Tensor with same dimensions as mu, or None
+    muref : torch.Tensor 
+        with same dimensions as mu (except axis 0, which can have len = 1)
+        First reference measure for the Gibbs energy, 
+        i.e. K = muref \otimes nuref exp(-C/eps)
+    nuref : torch.Tensor 
+        with same dimensions as nu (except axis 0, which can have len = 1)
+        Second reference measure for the Gibbs energy, 
+        i.e. K = muref \otimes nuref exp(-C/eps)
+    alpha_init : torch.Tensor 
+        with same dimensions as mu, or None
         Initialization for the first Sinkhorn potential
     """
 
     def __init__(self, mu, nu, C, eps, **kwargs):
-
         (xs, ys) = C
         zs = xs + ys  # Have all coordinates in one tuple
         x1 = zs[0]
@@ -267,31 +280,31 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
         # Check whether xs have a batch dimension
         if len(x1.shape) == 1:
             for z in zs:
-                assert len(
-                    z) == 1, "dimensions of grid coordinates must be consistent"
+                assert len(z) == 1, \
+                    "dimensions of grid coordinates must be consistent"
             C = tuple(tuple(xi.view(1, -1) for xi in X) for X in C)
         else:
             for z in zs:
-                assert len(
-                    z.shape) == 2, "coordinates can just have one spatial dimension"
-                assert z.shape[0] == B, "batch dimension of all coordinates must coincide"
+                assert len(z.shape) == 2, \
+                    "coordinates can just have one spatial dimension"
+                assert z.shape[0] == B, \
+                    "batch dimension of all coordinates must coincide"
 
         # Now all coordinates have a batch dimension of either B or 1.
         # Check that all coordinates have same grid spacing
         dx = x1[0, 1]-x1[0, 0]
         for z in zs:
-            if z.shape[-1] > 1:
-                assert torch.max(torch.abs(torch.diff(z, dim=-1)-dx)
-                                 ) < 1e-6, "Grid is not equispaced"
+            assert torch.max(torch.abs(torch.diff(z, dim=-1)-dx)) < 1e-6, \
+                "Grid is not equispaced"
 
         # Check geometric dimensions
         Ms = LogSinkhornGPU.geom_dims(mu)
         Ns = LogSinkhornGPU.geom_dims(nu)
         assert len(Ms) == len(Ns) == 2, "Shapes incompatible with images"
 
-        # Use the formulas above to compute the offset
-        self.offsetX, self.offsetY, self.offset_const = compute_offsets_sinkhorn_grid(
-            xs, ys, eps)
+        # Compute the offsets
+        self.offsetX, self.offsetY, self.offset_const = \
+            compute_offsets_sinkhorn_grid(xs, ys, eps)
 
         # Save xs and ys in case they are needed later
         self.xs = xs
@@ -303,7 +316,7 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
 
     def get_new_alpha(self):
         dx, Ms, Ns = self.C
-        h = self.beta / self.eps + self.lognu + self.offsetY
+        h = self.beta / self.eps + self.lognuref + self.offsetY
         return - self.eps * (
             LogSinkhornGPU.softmin_cuda_image(h, Ms, Ns, self.eps, dx)
             + self.offsetX + self.offset_const + self.logmuref - self.logmu
@@ -311,7 +324,7 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
 
     def get_new_beta(self):
         dx, Ms, Ns = self.C
-        h = self.alpha / self.eps + self.logmu + self.offsetX
+        h = self.alpha / self.eps + self.logmuref + self.offsetX
         return - self.eps * (
             LogSinkhornGPU.softmin_cuda_image(h, Ns, Ms, self.eps, dx)
             + self.offsetY + self.offset_const + self.lognuref - self.lognu
@@ -319,8 +332,9 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
 
     def get_dense_cost(self, ind=None):
         """
-        Get dense cost matrix of given problems. If no argument is given, all costs are computed.
-        Can be memory intensive, so it is recommended to do small batches at a time.
+        Get dense cost matrix of given problems. If no argument is given, all 
+        costs are computed. Can be memory intensive, so it is recommended to do 
+        small batches at a time.
         `ind` must be slice or iterable, not int.
         """
 
@@ -338,8 +352,9 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
 
     def get_dense_plan(self, ind=None, C=None):
         """
-        Get dense plans of given problems. If no argument is given, all plans are computed.
-        Can be memory intensive, so it is recommended to do small batches at a time.
+        Get dense plans of given problems. If no argument is given, all plans 
+        are computed. Can be memory intensive, so it is recommended to do small 
+        batches at a time.
         `ind` must be slice or iterable, not int.
         """
         if ind == None:
@@ -352,20 +367,22 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
         alpha, beta = self.alpha[ind], self.beta[ind]
         muref, nuref = self.muref[ind], self.nuref[ind]
 
-        pi = torch.exp((alpha.view(B, -1, 1) + beta.view(B, 1, -1) - C) /
-                       self.eps) * muref.view(B, -1, 1) * nuref.view(B, 1, -1)
+        pi = torch.exp(
+            (alpha.view(B, -1, 1) + beta.view(B, 1, -1) - C) / self.eps
+        ) * muref.view(B, -1, 1) * nuref.view(B, 1, -1)
         return pi
 
     def change_eps(self, new_eps):
         """
-        Change the regularization strength self.eps.
-        In this solver this also involves renormalizing the offsets
+        Change the regularization strength `self.eps`.
+        In this solver this also involves renormalizing the offsets.
         """
         self.Niter = 0
         self.current_error = self.max_error + 1.
-        self.offsetX = self.offsetX * (self.eps / new_eps)
-        self.offsetY = self.offsetY * (self.eps / new_eps)
-        self.offset_const = self.offset_const * (self.eps / new_eps)
+        scale = self.eps / new_eps
+        self.offsetX = self.offsetX * scale
+        self.offsetY = self.offsetY * scale
+        self.offset_const = self.offset_const * scale
         self.eps = new_eps
 
     def get_dx(self):
@@ -408,8 +425,8 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     Get cell marginals directly using duals and logsumexp reductions, 
     without building the transport plans. 
     The mathematical formulation is covered in [TODO: ref]
-    Returns tensor of size (B, n_basic, Ns), where B is the batch dimension and n_basic
-    the number of basic cells per composite cell.
+    Returns tensor of size (B, n_basic, Ns), where B is the batch dimension and 
+    n_basic the number of basic cells per composite cell.
     """
     Ms = LogSinkhornGPU.geom_dims(muref)
     Ns = LogSinkhornGPU.geom_dims(nuref)
@@ -423,10 +440,10 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
 
     # Perform permutations and reshapes in X data to turn them
     # into B*n_cells problems of size (s,s)
-    alpha_b = alpha.view(-1, 2, s, 2, s).permute((0,
-                                                  1, 3, 2, 4)).reshape(-1, s, s)
-    mu_b = muref.view(-1, 2, s, 2, s).permute((0, 1, 3, 2, 4)
-                                              ).reshape(-1, s, s)
+    alpha_b = alpha.view(-1, 2, s, 2, s) \
+        .permute((0, 1, 3, 2, 4)).reshape(-1, s, s)
+    mu_b = muref.view(-1, 2, s, 2, s) \
+        .permute((0, 1, 3, 2, 4)).reshape(-1, s, s)
     new_Ms = (s, s)
     logmu_b = LogSinkhornGPU.log_dens(mu_b)
 
@@ -454,19 +471,21 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     )
 
     # Build cell marginals
-    nu_basic = nuref[:, None] * \
-        torch.exp((beta[:, None] - beta_hat.view(-1, n_basic, *Ns))/eps)
+    nu_basic = nuref[:, None] * torch.exp(
+        (beta[:, None] - beta_hat.view(-1, n_basic, *Ns))/eps
+    )
     return nu_basic
 
 
 def BatchIterate(
-        muY, posY, dx, eps,
-        # TODO: remove this unnecesary input
-        partitionDataCompCells, partitionDataCompCellIndices,
-        muYAtomicDataList, muYAtomicIndicesList,\
-        muXJ, posXJ, alphaJ, betaDataList, betaIndexList, shapeY,\
-        SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,\
-        SinkhornInnerIter=100, BatchSize=np.inf):
+    muY, posY, dx, eps,
+    # TODO: remove this unnecesary input
+    partitionDataCompCells, partitionDataCompCellIndices,
+    muYAtomicDataList, muYAtomicIndicesList,
+    muXJ, posXJ, alphaJ, betaDataList, betaIndexList, shapeY,
+    SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
+    SinkhornInnerIter=100, BatchSize=np.inf
+):
 
     BatchTotal = muXJ.shape[0]
     if BatchSize == np.inf:
@@ -485,13 +504,17 @@ def BatchIterate(
         current_batch = len(partitionDataCompCellsBatch)
 
         # Solve batch
-        resultAlpha, resultBeta, resultMuYAtomicDataList, resultMuYCellIndicesList, solver = BatchDomDecIteration_CUDA(SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
-                                                                                                                       muXBatch, posXBatch, alphaBatch,
-                                                                                                                       [(muYAtomicDataList[j] for j in J) for J in partitionDataCompCellsBatch],
-                                                                                                                       [(muYAtomicIndicesList[j] for j in J) for J in partitionDataCompCellsBatch],\
-                                                                                                                       # partitionDataCompCellIndicesBatch[i],\
-                                                                                                                       SinkhornMaxIter, SinkhornInnerIter, current_batch
-                                                                                                                       )
+        resultAlpha, resultBeta, resultMuYAtomicDataList, \
+            resultMuYCellIndicesList, solver = BatchDomDecIteration_CUDA(
+                SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
+                muXBatch, posXBatch, alphaBatch,
+                [(muYAtomicDataList[j] for j in J)
+                 for J in partitionDataCompCellsBatch],
+                [(muYAtomicIndicesList[j] for j in J)
+                 for J in partitionDataCompCellsBatch],
+                # partitionDataCompCellIndicesBatch[i],
+                SinkhornMaxIter, SinkhornInnerIter, current_batch
+            )
 
         # Extract results
         alphaJ[i:i+BatchSize] = resultAlpha
@@ -536,7 +559,8 @@ def BatchDomDecIteration_CUDA(
     # TODO: for Sang: muYCell are not relevant for unbalanced domdec, what one
     # needs here are the nu_minus. subMuY is the reference measure
     muYCell, subMuY, left, bottom, width, height = batch_cell_marginals_2D(
-        muYCellIndices, muYCellData, shapeY)
+        muYCellIndices, muYCellData, shapeY
+    )
     # Turn muYCell, left and bottom into tensor
     device = muXCell.device
     muYCell = torch.tensor(muYCell, device=device, dtype=torch.float32)
@@ -545,11 +569,15 @@ def BatchDomDecIteration_CUDA(
 
     # 3: get physical coordinates of bounding box for each batched problem
     posYCell = get_grid_cartesian_coordinates(
-        left_cuda, bottom_cuda, width, height, dx)
+        left_cuda, bottom_cuda, width, height, dx
+    )
 
     # 4. Solve problem
     msg, resultAlpha, resultBeta, Nu_basic, solver = BatchSolveOnCell_CUDA(
-        muXCell, muYCell, posXCell, posYCell, eps, alphaCell, subMuY, SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter, SinkhornInnerIter=SinkhornInnerIter)
+        muXCell, muYCell, posXCell, posYCell, eps, alphaCell, subMuY,
+        SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,
+        SinkhornInnerIter=SinkhornInnerIter
+    )
 
     # 5. Turn back to numpy
     Nu_basic = Nu_basic.cpu().numpy()
@@ -560,19 +588,22 @@ def BatchDomDecIteration_CUDA(
 
     # 7. Extract new atomic muY and truncate
     MuYAtomicIndicesList, MuYAtomicDataList = unpack_cell_marginals_2D(
-        Nu_basic, left, bottom, shapeY)
+        Nu_basic, left, bottom, shapeY
+    )
 
     # resultMuYAtomicDataList = []
     # # The batched version always computes directly the cell marginals
     # for i in range(BatchSize):
     #     resultMuYAtomicDataList.append([np.array(pi[i,j]) for j in range(pi.shape[1])])
 
-    return (resultAlpha, resultBeta, MuYAtomicDataList, MuYAtomicIndicesList, solver)
+    return resultAlpha, resultBeta, MuYAtomicDataList, MuYAtomicIndicesList, solver
 
 
-def BatchSolveOnCell_CUDA(muXCell, muYCell, posX, posY, eps, alphaInit, muYref,
-                          SinkhornError=1E-4, SinkhornErrorRel=False, YThresh=1E-14, verbose=True,
-                          SinkhornMaxIter=10000, SinkhornInnerIter=10):
+def BatchSolveOnCell_CUDA(
+    muXCell, muYCell, posX, posY, eps, alphaInit, muYref,
+    SinkhornError=1E-4, SinkhornErrorRel=False, YThresh=1E-14, verbose=True,
+    SinkhornMaxIter=10000, SinkhornInnerIter=10
+):
 
     # Retrieve BatchSize
     B = muXCell.shape[0]
@@ -586,19 +617,19 @@ def BatchSolveOnCell_CUDA(muXCell, muYCell, posX, posY, eps, alphaInit, muYref,
     C = (posX, posY)
 
     # Solve problem
-    solver = LogSinkhornCudaImageOffset(muXCell, muYCell, C, eps, alpha_init=alphaInit, nuref=muYref,
-                                        max_error=SinkhornError, max_error_rel=SinkhornErrorRel,
-                                        max_iter=SinkhornMaxIter, inner_iter=SinkhornInnerIter)
+    solver = LogSinkhornCudaImageOffset(
+        muXCell, muYCell, C, eps, alpha_init=alphaInit, nuref=muYref,
+        max_error=SinkhornError, max_error_rel=SinkhornErrorRel,
+        max_iter=SinkhornMaxIter, inner_iter=SinkhornInnerIter
+    )
 
     msg = solver.iterate_until_max_error()
 
     alpha = solver.alpha
     beta = solver.beta
-
     # Compute cell marginals directly
     pi_basic = get_cell_marginals(
-        muXCell, muYref, alpha, beta, posX, posY, eps)
+        muXCell, muYref, alpha, beta, posX, posY, eps
+    )
 
     return msg, alpha, beta, pi_basic, solver
-
-    # TODO: if nuref not given properly, apply offset to alpha here
