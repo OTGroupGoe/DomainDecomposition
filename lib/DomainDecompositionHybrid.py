@@ -7,7 +7,7 @@ from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 
 
 # Build basic cell problem
-def get_gamma_2D(muX_basic, basic_mass, eps_gamma, cellsize):
+def get_gamma_2D(muX_basic, basic_mass, eps_gamma, cellsize, eps_scaling = False):
     """
     Get edge plans for min cost flow
     """
@@ -28,8 +28,12 @@ def get_gamma_2D(muX_basic, basic_mass, eps_gamma, cellsize):
     xs_gamma = (x_gamma, x_gamma)
     C = (xs_gamma, xs_gamma)
 
-    solver_gamma = DomDecGPU.LogSinkhornCudaImageOffset(mu_gamma, nu_gamma, C,eps_gamma)
-    status = solver_gamma.iterate_until_max_error()
+    solver_gamma = DomDecGPU.LogSinkhornCudaImageOffset(mu_gamma, nu_gamma, C, eps_gamma)
+    if eps_scaling:
+        # TODO: finish eps scaling
+        assert False, "Not implemented yet"
+    else:
+        status = solver_gamma.iterate_until_max_error()
     print("status gamma: ", status)
     gamma = solver_gamma.get_dense_plan()
     return gamma
@@ -220,7 +224,6 @@ def implement_flow(muYAtomicDataList, muYAtomicIndicesList, edges, w, capacities
     
     return muYAtomicDataList, muYAtomicIndicesList
 
-
 def flow_update(muYAtomicDataList, muYAtomicIndicesList, last_solver, 
                 muX_basic, basic_mass, gamma, basic_shape, 
                 capacities_nodes, edges, cellsize):
@@ -230,7 +233,7 @@ def flow_update(muYAtomicDataList, muYAtomicIndicesList, last_solver,
     w = solve_grid_flow_problem(basic_shape, capacities_nodes, edge_costs)
     # Implement flow
     implement_flow(muYAtomicDataList, muYAtomicIndicesList, edges, w, capacities_nodes, basic_shape)
-
+    return w
 
 
 
