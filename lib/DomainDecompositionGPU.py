@@ -11,6 +11,19 @@ from . import DomainDecomposition as DomDec
 #########################################################
 
 
+def pad_array(a, padding, pad_value=0):
+    """
+    Pad array `a.reshape(*shape)` with a margin of `padding` width, filled with `pad_value`. 
+    If the original shape of `a` was not `shape`, return raveled padded array.
+    """
+    shape = a.shape
+    new_shape = tuple(s + 2*padding for s in shape)
+    original_locations = tuple(slice(padding, s+padding) for s in shape)
+    b = np.full(new_shape, pad_value, dtype=a.dtype)
+    b[original_locations] = a
+    return b
+
+
 def reformat_indices_2D(index, shapeY):
     """
     Takes linear indices and tuple of the total shapeY, and returns parameters 
@@ -33,18 +46,19 @@ def reformat_indices_2D(index, shapeY):
     return left, bottom, width, height, idx, idy
 
 
-def batch_cell_marginals_2D(marg_indices, marg_data, shapeY):
+def batch_cell_marginals_2D(marg_indices, marg_data, shapeY, muY):
     """
     Reshape marginals to a rectangle, find the biggest of all of these and 
-    concatenate all marginals along a batch dimension.
+    concatenate all marginals along a batch dimension. 
+    Copy reference measure `muY` to these bounding boxes.
     """
     # TODO: generalize to 3D
     # Initialize structs to hold the data of all marginals
     B = len(marg_indices)
-    left = np.zeros(B, dtype=np.int64)
-    bottom = np.zeros(B, dtype=np.int64)
-    width = np.zeros(B, dtype=np.int64)
-    height = np.zeros(B, dtype=np.int64)
+    left = np.zeros(B, dtype=np.int32)
+    bottom = np.zeros(B, dtype=np.int32)
+    width = np.zeros(B, dtype=np.int32)
+    height = np.zeros(B, dtype=np.int32)
     idx = []
     idy = []
 
@@ -60,14 +74,21 @@ def batch_cell_marginals_2D(marg_indices, marg_data, shapeY):
     max_height = np.max(height)
 
     # Init batched marginal
-    Nu_comp = np.zeros((B, max_width, max_height))
+    Nu_box = np.zeros((B, max_width, max_height))
+    # Init batched nuref
+    muY = muY.reshape(shapeY)
+    Nuref_box = np.zeros((B, max_width, max_height))
 
     # Fill NuJ
-    for (i, data) in enumerate(marg_data):
-        Nu_comp[i, idx[i], idy[i]] = data
+    for (k, data) in enumerate(marg_data):
+        Nu_box[k, idx[k], idy[k]] = data
+        # Copy reference measure
+        i0, w = left[k], width[k]
+        j0, h = bottom[k], height[k]
+        Nuref_box[k,:w,:h] = muY[i0:i0+w, j0:j0+h]
 
     # Return NuJ together with bounding box data (they will be needed for unpacking)
-    return Nu_comp, left, bottom, max_width, max_height
+    return Nu_box, Nuref_box, left, bottom, max_width, max_height
 
 
 def unpack_cell_marginals_2D(Nu_basic, left, bottom, shapeY, threshold=1e-15):
@@ -126,6 +147,7 @@ def unpack_cell_marginals_2D_gpu(Nu_basic, left, bottom, shapeY, threshold=1e-15
             # idx, idy = np.nonzero(Nu_basic[k, i])
             idx, idy = np.nonzero(Nu_basic[k, i] > threshold)
             linear_id = (idx+left[k])*n + idy + bottom[k]
+            print(left.dtype, bottom.dtype, linear_id.dtype)
             marg_indices.append(linear_id)
             marg_data.append(Nu_basic[k, i, idx, idy])
     return marg_indices, marg_data
@@ -363,6 +385,40 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
         self.offset_const = self.offset_const * scale
         self.eps = new_eps
 
+    def get_dx(self):
+        return self.C[0]
+
+
+def convert_to_basic_2D(A, basic_grid_shape, cellsize):
+    """
+    A is a tensor of shape (B, m1, m2, *(rem_shape)), where
+    B = prod(basic_grid_shape)/4
+    m1 = m2 = 2*cellsize
+    """
+    B, m1, m2 = A.shape[:3]
+    rem_shape = A.shape[3:]  # Rest of the shape, that we will not change
+    sb1, sb2 = basic_grid_shape
+    assert 4*B == sb1*sb2, "Batchsize does not match basic grid"
+    assert m1 == m2 == 2*cellsize, "Problem size does not mach cellsize"
+    new_shape = (sb1, sb2, cellsize, cellsize, *rem_shape)
+    # Permute dimensions to make last X dimension that inner to cell
+    A_res = A.view(sb1//2, sb2//2, 2, cellsize, 2,
+                   cellsize, -1).permute(0, 2, 1, 4, 3, 5, 6)
+    A_res = A_res.reshape(new_shape)
+    return A_res
+
+
+def convert_to_batch_2D(A):
+    """
+    A is a tensor of shape (sb1, sb2, cellsize, cellsize, *(rem_shape))
+    """
+    sb1, sb2, cellsize = A.shape[:3]
+    rem_shape = A.shape[4:]
+    new_shape = (sb1*sb2//4, 2*cellsize, 2*cellsize, *rem_shape)
+    A_res = A.view(sb1//2, 2, sb2//2, 2, cellsize, cellsize, -1)
+    A_res = A_res.permute(0, 2, 1, 4, 3, 5, 6).reshape(new_shape)
+    return A_res
+
 
 def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     """
@@ -449,7 +505,7 @@ def BatchIterate(
 
         # Solve batch
         resultAlpha, resultBeta, resultMuYAtomicDataList, \
-            resultMuYCellIndicesList, solver = BatchDomDecIteration_CUDA(
+            resultMuYCellIndicesList, info = BatchDomDecIteration_CUDA(
                 SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
                 muXBatch, posXBatch, alphaBatch,
                 [(muYAtomicDataList[j] for j in J)
@@ -476,7 +532,7 @@ def BatchIterate(
                 muYAtomicDataList[b] = resultMuYAtomicDataList[lenJ*k + j]
                 muYAtomicIndicesList[b] = resultMuYCellIndicesList[lenJ*k + j]
 
-    return alphaJ, muYAtomicIndicesList, muYAtomicDataList, solver
+    return alphaJ, muYAtomicIndicesList, muYAtomicDataList, info
     # for jsub,j in enumerate(partitionDataCompCellsBatch):
     #     muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
     #     muYAtomicIndicesList[j]=muYCellIndices.copy()
@@ -498,13 +554,17 @@ def BatchDomDecIteration_CUDA(
         muYCellData.append(arrayAdder.getDataTuple()[0])
         muYCellIndices.append(arrayAdder.getDataTuple()[1])
 
-    # 2: compute bounding box and copy data to it.
-    muYCell, left, bottom, width, height = batch_cell_marginals_2D(
-        muYCellIndices, muYCellData, shapeY
+    # 2: compute bounding box and copy data to it. Also get reference measure
+    # in boxes
+    # TODO: for Sang: muYCell are not relevant for unbalanced domdec, what one
+    # needs here are the nu_minus. subMuY is the reference measure
+    muYCell, subMuY, left, bottom, width, height = batch_cell_marginals_2D(
+        muYCellIndices, muYCellData, shapeY, muY
     )
-    # Turn muYCell, left and bottom into tensor
+    # Turn muYCell, left, bottom and subMuY into tensor
     device = muXCell.device
     muYCell = torch.tensor(muYCell, device=device, dtype=torch.float32)
+    subMuY = torch.tensor(subMuY, device=device, dtype=torch.float32)
     left_cuda = torch.tensor(left, device=device)
     bottom_cuda = torch.tensor(bottom, device=device)
 
@@ -513,25 +573,21 @@ def BatchDomDecIteration_CUDA(
         left_cuda, bottom_cuda, width, height, dx
     )
 
-    # 4. get muY on the positions of muYCell (refNu)
-    # TODO: for now just copy muYCell
-    subMuY = muYCell
-
-    # 5. Solve problem
-    msg, resultAlpha, resultBeta, Nu_basic, solver = BatchSolveOnCell_CUDA(
+    # 4. Solve problem
+    resultAlpha, resultBeta, Nu_basic, info = BatchSolveOnCell_CUDA(
         muXCell, muYCell, posXCell, posYCell, eps, alphaCell, subMuY,
         SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,
         SinkhornInnerIter=SinkhornInnerIter
     )
 
-    # 6. Turn back to numpy
+    # 5. Turn back to numpy
     Nu_basic = Nu_basic.cpu().numpy()
 
-    # 7. Balance. Plain DomDec code works here
+    # 6. Balance. Plain DomDec code works here
     if balance:
         batch_balance(muXCell, Nu_basic)
 
-    # 8. Extract new atomic muY and truncate
+    # 7. Extract new atomic muY and truncate
     MuYAtomicIndicesList, MuYAtomicDataList = unpack_cell_marginals_2D(
         Nu_basic, left, bottom, shapeY
     )
@@ -541,7 +597,7 @@ def BatchDomDecIteration_CUDA(
     # for i in range(BatchSize):
     #     resultMuYAtomicDataList.append([np.array(pi[i,j]) for j in range(pi.shape[1])])
 
-    return resultAlpha, resultBeta, MuYAtomicDataList, MuYAtomicIndicesList, solver
+    return resultAlpha, resultBeta, MuYAtomicDataList, MuYAtomicIndicesList, info
 
 
 def BatchSolveOnCell_CUDA(
@@ -577,6 +633,10 @@ def BatchSolveOnCell_CUDA(
         muXCell, muYref, alpha, beta, posX, posY, eps
     )
 
-    return msg, alpha, beta, pi_basic, solver
+    # Wrap solver and possibly runtime info into info dictionary
+    info = {
+        "solver": solver,
+        "msg": msg
+    }
 
-    # TODO: if nuref not given properly, apply offset to alpha here
+    return alpha, beta, pi_basic, info
