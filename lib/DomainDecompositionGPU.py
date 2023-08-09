@@ -635,7 +635,7 @@ def BatchSolveOnCell_CUDA(
 
     # Wrap solver and possibly runtime info into info dictionary
     info = {
-        "solver": solver, 
+        "solver": solver,
         "msg": msg
     }
 
