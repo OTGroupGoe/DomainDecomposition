@@ -16,6 +16,8 @@ def getDefaultParams():
     params["sinkhorn_subsolver"]="SparseSinkhorn"
     params["sinkhorn_error"]=1.E-4
     params["sinkhorn_error_rel"]=False
+    params["sinkhorn_max_iter"]=10000
+    params["sinkhorn_inner_iter"]=10
 
     params["eps_schedule"]="default"
     params["eps_base"]=0.5
@@ -52,6 +54,9 @@ def getDefaultParams():
     params["comparison_verbose"]=False
     params["comparison_final_layer_manual"]=False
     params["comparison_sinkhorn_error"]=1E-6
+    # Unable hybrid mode by default
+    params["hybrid_mode"] = "domdec"
+    params["unbalanced_mode"] = "balanced"
     
     return params
 # list of parameters to extract from command line
