@@ -35,6 +35,24 @@ def pad_tensor(a, padding, pad_value=0):
     b[original_locations] = a
     return b
 
+def pad_replicate_2D(a, padding):
+    """
+    Pad tensor `a` replicating values at boundary `paddding` times.
+    """
+    shape = a.shape
+    new_shape = tuple(s + 2*padding for s in shape)
+    original_locations = tuple(slice(padding, s+padding) for s in shape)
+    b = torch.zeros(new_shape, dtype=a.dtype, device=a.device)
+    b[original_locations] = a
+    # TODO: from here is specific for 2D
+    s1, s2 = shape
+    for i in range(padding):
+        # Copy closest slice in the direction of the true array
+        b[padding-1-i,:] = b[padding-i,:]
+        b[s1+padding+i,:] = b[s1+padding-1+i,:]
+        b[:,padding-1-i] = b[:,padding-i]
+        b[:,s2+padding+i] = b[:,s2+padding-1+i]
+    return b
 
 def reformat_indices_2D(index, shapeY):
     """
@@ -42,18 +60,22 @@ def reformat_indices_2D(index, shapeY):
     encoding the bounding box.
     """
     # TODO: generalize to 3D
+
     _, n = shapeY
     idx, idy = index // n, index % n
-
-    left = np.min(idx)
-    right = np.max(idx)
-    bottom = np.min(idy)
-    top = np.max(idy)
-    width = right - left + 1  # box width
-    height = top - bottom + 1  # box height
-    # Turn idx and idy into relative indices
-    idx = idx - left
-    idy = idy - bottom
+    if len(index) == 0:
+        left, bottom = shapeY
+        width = height = 0
+    else:
+        left = np.min(idx)
+        right = np.max(idx)
+        bottom = np.min(idy)
+        top = np.max(idy)
+        width = right - left + 1  # box width
+        height = top - bottom + 1  # box height
+        # Turn idx and idy into relative indices
+        idx = idx - left
+        idy = idy - bottom
 
     return left, bottom, width, height, idx, idy
 
@@ -128,40 +150,40 @@ def unpack_cell_marginals_2D(Nu_basic, left, bottom, shapeY, threshold=1e-15):
             marg_data.append(Nu_basic[k, i, idx, idy])
     return marg_indices, marg_data
 
+# TODO: complete this if possible
+# def unpack_cell_marginals_2D_gpu(Nu_basic, left, bottom, shapeY, threshold=1e-15):
+#     """
+#     Un-batch all the cell marginals and truncate entries below `threshold`.
+#     """
+#     # TODO: generalize to 3D
+#     # Assumes Nu_basic still in GPU
+#     # Nu_basic is of size (B, 4, w, h), because there are 4 basic cells per
+#     # composite cell
+#     _, n = shapeY
+#     # Do all the process in the cpu
+#     B = Nu_basic.shape[0]
+#     sizeJ = Nu_basic.shape[1]
+#     marg_indices = []
+#     marg_data = []
+#     idB, idx, idy = torch.where(Nu_basic > threshold)
+#     nu_entries = Nu_basic[idB, idx, idy]
+#     # Where batch index changes slice
+#     steps = torch.where(torch.diff(idB))[0]+1
+#     # Add start and end
+#     steps = np.hstack(([0], steps.cpu().numpy(), [len(idB)]))
+#     # TODO: continue here
 
-def unpack_cell_marginals_2D_gpu(Nu_basic, left, bottom, shapeY, threshold=1e-15):
-    """
-    Un-batch all the cell marginals and truncate entries below `threshold`.
-    """
-    # TODO: generalize to 3D
-    # Assumes Nu_basic still in GPU
-    # Nu_basic is of size (B, 4, w, h), because there are 4 basic cells per
-    # composite cell
-    _, n = shapeY
-    # Do all the process in the cpu
-    B = Nu_basic.shape[0]
-    sizeJ = Nu_basic.shape[1]
-    marg_indices = []
-    marg_data = []
-    idB, idx, idy = torch.where(Nu_basic > threshold)
-    nu_entries = Nu_basic[idB, idx, idy]
-    # Where batch index changes slice
-    steps = torch.where(torch.diff(idB))[0]+1
-    # Add start and end
-    steps = np.hstack(([0], steps.cpu().numpy(), [len(idB)]))
-    # TODO: continue here
-
-    # -------
-    # NOTE: extraction could be done for the whole Nu_basic at once,
-    # but then how to distinguish between slices.
-    for k in range(B):
-        for i in range(sizeJ):  # TODO: allow different dimension
-            # idx, idy = np.nonzero(Nu_basic[k, i])
-            idx, idy = np.nonzero(Nu_basic[k, i] > threshold)
-            linear_id = (idx+left[k])*n + idy + bottom[k]
-            marg_indices.append(linear_id)
-            marg_data.append(Nu_basic[k, i, idx, idy])
-    return marg_indices, marg_data
+#     # -------
+#     # NOTE: extraction could be done for the whole Nu_basic at once,
+#     # but then how to distinguish between slices.
+#     for k in range(B):
+#         for i in range(sizeJ):  # TODO: allow different dimension
+#             # idx, idy = np.nonzero(Nu_basic[k, i])
+#             idx, idy = np.nonzero(Nu_basic[k, i] > threshold)
+#             linear_id = (idx+left[k])*n + idy + bottom[k]
+#             marg_indices.append(linear_id)
+#             marg_data.append(Nu_basic[k, i, idx, idy])
+#     return marg_indices, marg_data
 
 
 # def batch_balance(muXCell, Nu_basic):
@@ -281,11 +303,15 @@ def get_refined_marginals_gpu(muYL, muYL_old, parentsYL,
     # For old cells
     cell_indices_old = np.arange(np.prod(meta_cell_shape_old))
     true_indices_old = cell_indices_old.reshape(meta_cell_shape_old)
+    # print(cell_indices_old, true_indices_old)
+    # print(len(atomic_data_old), len(atomic_indices_old))
     # TODO: this is 2D
     true_indices_old = true_indices_old[1:-1, 1:-1].ravel()
     true_atomic_cells_old = [atomic_cells_old[i] for i in true_indices_old]
-    true_atomic_data_old = [atomic_data_old[i] for i in true_indices_old]
-    true_atomic_indices_old = [atomic_indices_old[i] for i in true_indices_old]
+    # true_atomic_data_old = [atomic_data_old[i] for i in true_indices_old]
+    # true_atomic_indices_old = [atomic_indices_old[i] for i in true_indices_old]
+    true_atomic_data_old = atomic_data_old
+    true_atomic_indices_old = atomic_indices_old
     true_atomic_masses_old = atomic_masses_old[true_indices_old]
 
     # For new cells
@@ -672,7 +698,6 @@ def BatchDomDecIteration_CUDA(
         SinkhornInnerIter=SinkhornInnerIter
     )
     info["time_sinkhorn"] = time.time() - t0
-    print("dtype alpha:", resultAlpha.dtype)
     # Renormalize Nu_basic
     Nu_basic = Nu_basic * \
         (muYCell / (Nu_basic.sum(dim=1) + 1e-30))[:, None, :, :]
@@ -834,7 +859,6 @@ def get_axis_bounds(Nu_basic, mask, global_minus, axis):
                        axis else 1 for i in range(len(Nu_basic.shape))]
     index_axis = index_axis.view(new_shape_index)
     mask_index = mask*index_axis
-    print(mask_index.dtype)
     # Get positive extreme
     basic_plus = mask_index.view(B, C, -1).amax(-1)
     # Turn zeros to upper bound so that we can get the minimum
@@ -876,6 +900,29 @@ def basic_to_composite_CUDA_2D(Nu_basic, global_left, global_bottom):
     return Nu_comp, global_composite_left, global_composite_bottom
 
 
+def unpack_cell_marginals_2D_box(Nu_basic, left, bottom, shapeY):
+    """
+    Un-batch all the cell marginals and truncate entries below `threshold`.
+    """
+    # TODO: generalize to 3D
+    # Nu_basic is of size (B, 4, w, h), because there are 4 basic cells per
+    # left and bottom are of size (B, 4)
+    _, n = shapeY
+    # Do all the process in the cpu
+    B = Nu_basic.shape[0]
+    marg_indices = []
+    marg_data = []
+    # NOTE: extraction could be done for the whole Nu_basic at once,
+    # but then how to distinguish between slices.
+    for k in range(B):
+        # idx, idy = np.nonzero(Nu_basic[k, i])
+        idx, idy = np.nonzero(Nu_basic[k] > 0)
+        linear_id = (idx+left[k])*n + idy + bottom[k]
+        marg_indices.append(linear_id)
+        marg_data.append(Nu_basic[k, idx, idy])
+    return marg_indices, marg_data
+
+
 def BatchIterateBox(
     muY, posY, dx, eps,
     muXJ, posXJ, alphaJ,
@@ -885,7 +932,7 @@ def BatchIterateBox(
     SinkhornInnerIter=100, BatchSize=np.inf
 ):
 
-    assert BatchSize == np.inf, "not implemented for partial BatchSize"
+    # assert BatchSize == np.inf, "not implemented for partial BatchSize"
     if partition == "A":
         # Global nu_basic has shape (b1, b2, w, h)
         # TODO: generalize for 3D
@@ -897,14 +944,13 @@ def BatchIterateBox(
         torch_options = dict(device = nu_basic.device, dtype = nu_basic.dtype)
         nu_basic_part = torch.zeros((b1+2, b2+2, w, h), **torch_options)
         nu_basic_part[1:-1,1:-1] = nu_basic
-        # Pad left and bottom with something that doesn't interfere real poitns
-        pad_replicate = torch.nn.ReplicationPad2d(1)
-        left_part = pad_replicate(left.view(1,b1,b2)).view(b1+2,b2+2)
-        bottom_part = pad_replicate(bottom.view(1,b1,b2)).view(b1+2,b2+2)
+        # Pad left and bottom with extension of actual values
+        left_part = pad_replicate_2D(left,1)
+        bottom_part = pad_replicate_2D(bottom,1)
 
     # Solve batch
-    alphaJ, resultBeta, nu_basic_part, info = \
-        BatchDomDecIteration_CUDA(
+    alphaJ, betaJ, nu_basic_part, left_part, bottom_part, info = \
+        BatchDomDecIterationBox_CUDA(
             SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
             muXJ, posXJ, alphaJ,
             nu_basic_part, left_part, bottom_part,
@@ -912,8 +958,6 @@ def BatchIterateBox(
         )
     if partition == "A":
         # TODO: generalize for 3D
-        # TODO: last dimensions of nu_basic_part have changed, so
-        # one cannot use nu_basic anymore. Just pad
  
         nu_basic = nu_basic_part
         left = left_part
@@ -929,24 +973,110 @@ def BatchIterateBox(
     #     muYAtomicIndicesList[j]=muYCellIndices.copy()
 
 
+# TODO: finish this
+# def BatchIterateBox(
+#     muY, posY, dx, eps,
+#     muXJ, posXJ, alphaJ,
+#     nu_basic, left, bottom, shapeY,
+#     partition="A",
+#     SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
+#     SinkhornInnerIter=100, BatchSize=np.inf
+# ):
+#     torch_options = dict(device = nu_basic.device, dtype = nu_basic.dtype)
+#     # assert BatchSize == np.inf, "not implemented for partial BatchSize"
+#     if partition == "A":
+#         # Global nu_basic has shape (b1, b2, w, h)
+#         # TODO: generalize for 3D
+#         nu_basic_part = nu_basic
+#         left_part = left
+#         bottom_part = bottom
+#     else:
+#         (b1, b2, w, h) = nu_basic.shape
+#         nu_basic_part = torch.zeros((b1+2, b2+2, w, h), **torch_options)
+#         nu_basic_part[1:-1,1:-1] = nu_basic
+#         # Pad left and bottom with extension of actual values
+#         left_part = pad_replicate_2D(left,1)
+#         bottom_part = pad_replicate_2D(bottom,1)
+
+#     BatchTotal = muXJ.shape[0]
+#     if BatchSize == np.inf:
+#         BatchSize = BatchTotal
+
+#     else:
+#         # Make sure that BatchSize is an integer number of nu_basic rows
+#         print(nu_basic_part.shape)
+#         b1, b2 = nu_basic_part.shape[:2]
+#         BatchSize = (2*b2)* BatchSize // (2*b2)
+#     nu_basic_results = []
+
+#     # Divide problem data into batches of size BatchSize
+#     for i in range(0, BatchTotal, BatchSize):
+#         print(BatchSize, (i+BatchSize)//b2)
+#         muXBatch = muXJ[i:i+BatchSize]
+#         posXBatch = tuple(x[i:i+BatchSize] for x in posXJ)
+#         alphaBatch = alphaJ[i:i+BatchSize]
+#         nu_basic_batch = nu_basic_part[i//b2:(i+BatchSize)//b2]
+#         left_batch = left_part[i//b2:(i+BatchSize)//b2].clone()
+#         bottom_batch = bottom_part[i//b2:(i+BatchSize)//b2].clone()
+#         # Solve batch
+#         resultAlpha, resultBeta, nu_basic_batch, left_batch, bottom_batch, info = \
+#             BatchDomDecIterationBox_CUDA(
+#                 SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
+#                 muXBatch, posXBatch, alphaBatch,
+#                 nu_basic_batch, left_batch, bottom_batch,
+#                 SinkhornMaxIter, SinkhornInnerIter
+#             )
+#         alphaJ[i:i+BatchSize] = resultAlpha
+#         nu_basic_results.append(nu_basic_batch) # must match shape later
+#         left_part[i//b2:(i+BatchSize)//b2] = left_batch
+#         bottom_part[i//b2:(i+BatchSize)//b2] = bottom_batch
+
+#     # Joint all partial results together
+#     max_width = max(nu_i.shape[2] for nu_i in nu_basic_results)
+#     max_height = max(nu_i.shape[3] for nu_i in nu_basic_results)
+#     nu_result_part = torch.zeros((b1, b2, max_width, max_height), **torch_options)
+#     for i in range(0, BatchTotal, BatchSize):
+#         nu_result_part[i//b2:(i+BatchSize)//b2] = nu_basic_results[i//BatchSize]
+
+#     if partition == "A":
+#         # TODO: generalize for 3D
+ 
+#         nu_basic = nu_basic_part
+#         left = left_part
+#         bottom = bottom_part
+#     else:
+#         nu_basic = nu_basic_part[1:-1,1:-1]
+#         left = left_part[1:-1,1:-1]
+#         bottom = bottom_part[1:-1,1:-1]
+
+#     return resultAlpha, nu_basic, left, bottom, info
+#     # for jsub,j in enumerate(partitionDataCompCellsBatch):
+#     #     muYAtomicDataList[j]=resultMuYAtomicDataList[jsub]
+#     #     muYAtomicIndicesList[j]=muYCellIndices.copy()
+
+
 def BatchDomDecIterationBox_CUDA(
         SinkhornError, SinkhornErrorRel, muY, posYCell, dx, eps, shapeY,
         # partitionDataCompCellIndices,
         muXCell, posXCell, alphaCell,
         nu_basic, left, bottom,
-        SinkhornMaxIter, SinkhornInnerIter, BatchSize, balance=True):
+        SinkhornMaxIter, SinkhornInnerIter, balance=True):
 
+    info = dict()
     # 1: compute composite cell marginals
     # Get basic shape size
+
     t0 = time.time()
     b1, b2, w0, h0 = nu_basic.shape
     torch_options = dict(device=nu_basic.device, dtype=nu_basic.dtype)
+    torch_options_int = dict(device=nu_basic.device, dtype=torch.int32)
     c1, c2 = b1//2, b2//2
     nu_basic = nu_basic.reshape(c1, 2, c2, 2, w0, h0).permute(0, 2, 1, 3, 4, 5) \
         .reshape(c1*c2, 4, w0, h0)
     left = left.reshape(c1, 2, c2, 2).permute(0, 2, 1, 3).reshape(c1*c2, 4)
     bottom = bottom.reshape(c1, 2, c2, 2).permute(0, 2, 1, 3).reshape(c1*c2, 4)
-    muYCell, new_left, new_right = basic_to_composite_CUDA_2D(
+    # Get composite marginals as well as new left and right
+    muYCell, left, bottom = basic_to_composite_CUDA_2D(
         nu_basic, left, bottom)
     info["time_bounding_box"] = time.time() - t0
 
@@ -954,7 +1084,7 @@ def BatchDomDecIterationBox_CUDA(
     subMuY = muYCell
 
     # 2. Get bounding box dimensions
-    w, h = muYCell[2:]
+    w, h = muYCell.shape[1:]
     info["bounding_box"] = (w, h)
 
     # 3: get physical coordinates of bounding box for each batched problem
@@ -965,13 +1095,14 @@ def BatchDomDecIterationBox_CUDA(
     # 4. Solve problem
 
     t0 = time.time()
-    resultAlpha, resultBeta, Nu_basic, info_solver = BatchSolveOnCell_CUDA(
-        muXCell, muYCell, posXCell, posYCell, eps, alphaCell, subMuY,
-        SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,
-        SinkhornInnerIter=SinkhornInnerIter
+    # print(muXCell.shape, muYCell.shape, posXCell[0].shape, posYCell[0].shape)
+    resultAlpha, resultBeta, nu_basic, info_solver = \
+        BatchSolveOnCell_CUDA(
+            muXCell, muYCell, posXCell, posYCell, eps, alphaCell, subMuY,
+            SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,
+            SinkhornInnerIter=SinkhornInnerIter
     )
-    print("dtype alpha:", resultAlpha.dtype)
-    # Renormalize Nu_basic
+    # Renormalize nu_basic 
     nu_basic = nu_basic * \
         (muYCell / (nu_basic.sum(dim=1) + 1e-40))[:, None, :, :]
     info["time_sinkhorn"] = time.time() - t0
@@ -993,6 +1124,7 @@ def BatchDomDecIterationBox_CUDA(
 
     # 7. Truncate
     t0 = time.time()
+    # TODO: if too slow or too much memory turn to dedicated cuda function
     nu_basic[nu_basic <= 1e-15] = 0.0
     info["time_truncation"] = time.time() - t0
 
@@ -1000,7 +1132,7 @@ def BatchDomDecIterationBox_CUDA(
     nu_basic = nu_basic.reshape(c1, c2, 2, 2, w, h).permute(0, 2, 1, 3, 4, 5) \
         .reshape(b1, b2, w, h)
 
-    basic_expander = torch.ones((1, 2, 1, 2), **torch_options)
+    basic_expander = torch.ones((1, 2, 1, 2), **torch_options_int)
     left = left.reshape(c1, 1, c1, 1) * basic_expander
     left = left.view(b1, b2)
     bottom = bottom.reshape(c1, 1, c1, 1) * basic_expander
