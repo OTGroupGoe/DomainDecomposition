@@ -308,10 +308,14 @@ def get_refined_marginals_gpu(muYL, muYL_old, parentsYL,
     # TODO: this is 2D
     true_indices_old = true_indices_old[1:-1, 1:-1].ravel()
     true_atomic_cells_old = [atomic_cells_old[i] for i in true_indices_old]
-    # true_atomic_data_old = [atomic_data_old[i] for i in true_indices_old]
-    # true_atomic_indices_old = [atomic_indices_old[i] for i in true_indices_old]
-    true_atomic_data_old = atomic_data_old
-    true_atomic_indices_old = atomic_indices_old
+    # TODO: reconcile sparse and gpu versions
+    if len(atomic_data_old) == len(true_indices_old):
+        true_atomic_data_old = atomic_data_old
+        true_atomic_indices_old = atomic_indices_old
+    else:
+        true_atomic_data_old = [atomic_data_old[i] for i in true_indices_old]
+        true_atomic_indices_old = [atomic_indices_old[i] for i in true_indices_old]
+
     true_atomic_masses_old = atomic_masses_old[true_indices_old]
 
     # For new cells
