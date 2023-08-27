@@ -4,6 +4,16 @@ import scipy.io as sciio
 import os
 import h5py
 
+def printTopic(evaluationData,topic):
+    head=topic+"_"
+    lHead=len(head)
+    tmp={}
+    for k in evaluationData.keys():
+        if k[:lHead]==head:
+            tmp[k]=evaluationData[k]
+    print(tmp)
+
+
 def importData(fn):
     try:
         data=sciio.loadmat(fn)

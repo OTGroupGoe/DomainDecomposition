@@ -614,6 +614,7 @@ def BalanceMeasuresMulti(muYAtomicListSub,atomicCellMassesSub,threshStep=1E-16,t
     nCells=len(muYAtomicListSub)
     
     massDeltasSub=np.array([np.sum(a)-b for a,b in zip(muYAtomicListSub,atomicCellMassesSub)])
+    # print(massDeltasSub)
     if nCells==1:
         return (0,muYAtomicListSub)
 
