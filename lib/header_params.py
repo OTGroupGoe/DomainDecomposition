@@ -55,7 +55,7 @@ def getDefaultParams():
     params["comparison_final_layer_manual"]=False
     params["comparison_sinkhorn_error"]=1E-6
     # Unable hybrid mode by default
-    params["hybrid_mode"] = "domdec"
+    params["hybrid_mode"] = False
     params["unbalanced_mode"] = "balanced"
     
     return params
