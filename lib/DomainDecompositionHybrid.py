@@ -3,6 +3,7 @@ from ortools.graph.python import min_cost_flow
 import torch
 from . import DomainDecompositionGPU as DomDecGPU
 import scipy.sparse as sp
+import time
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 
 
@@ -23,7 +24,7 @@ def get_gamma_2D(muX_basic, basic_mass, eps_gamma, cellsize, eps_scaling = False
 
     B = mu_gamma.shape[0]
     # Get coordinates
-    x_gamma = torch.arange(cellsize, dtype = torch.float32, device = mu_gamma.device).view(1,-1)
+    x_gamma = torch.arange(cellsize, dtype = mu_gamma.dtype, device = mu_gamma.device).view(1,-1)
     x_gamma = torch.repeat_interleave(x_gamma, B, dim = 0) # Batched version
     xs_gamma = (x_gamma, x_gamma)
     C = (xs_gamma, xs_gamma)
@@ -36,6 +37,7 @@ def get_gamma_2D(muX_basic, basic_mass, eps_gamma, cellsize, eps_scaling = False
         status = solver_gamma.iterate_until_max_error()
     print("status gamma: ", status)
     gamma = solver_gamma.get_dense_plan()
+
     return gamma
 
 def get_edges_2D(basic_shape):
@@ -171,15 +173,15 @@ def solve_grid_flow_problem(size, cap_nodes, cost_edges):
     cost[N:] = (res_cost * (cost_edges / max_cost)).astype(np.int64)
 
     # build solver
-    solver = min_cost_flow.SimpleMinCostFlow()
+    solver_flow = min_cost_flow.SimpleMinCostFlow()
     
     # Add arcs, capacities and costs in bulk using numpy.
-    all_arcs = solver.add_arcs_with_capacity_and_unit_cost(
+    all_arcs = solver_flow.add_arcs_with_capacity_and_unit_cost(
         start_nodes, end_nodes, cap, cost)
     
     # solve problem
-    status = solver.solve()
-    flows = solver.flows(all_arcs)
+    status = solver_flow.solve()
+    flows = solver_flow.flows(all_arcs)
     nodes_engaged = flows[:N]
     w = flows[N:].astype(np.float64) * (max_cap / res_cap)
     return w
@@ -195,7 +197,10 @@ def implement_flow(muYAtomicDataList, muYAtomicIndicesList, edges, w, capacities
     n_nodes = np.prod(basic_shape)
     incidence_T = sp.csr_matrix((w, (J, I)), shape = (n_nodes, n_nodes)) # incidence_T[j,i] is the flow from i to j
     mass_out = np.array(incidence_T.sum(axis = 1)).ravel() # outflow from every cell
-    basic_cell_index = np.arange((sb1+2)*(sb2+2)).reshape((sb1+2, sb2+2))[1:-1,1:-1].ravel() # consider padding
+    if len(muYAtomicDataList) != sb1*sb2:
+        basic_cell_index = np.arange((sb1+2)*(sb2+2)).reshape((sb1+2, sb2+2))[1:-1,1:-1].ravel() # consider padding
+    else:
+        basic_cell_index = np.arange(sb1*sb2)
     
     # These have no padding for simplicity
     new_muYAtomicDataList = []
@@ -230,10 +235,13 @@ def flow_update(muYAtomicDataList, muYAtomicIndicesList, last_solver,
     # Get induced edge costs
     edge_costs = get_edge_costs_2D(last_solver, basic_shape, cellsize, muX_basic, basic_mass, gamma)
     # Solve min cost flow problem
+    t0 = time.time()
+
     w = solve_grid_flow_problem(basic_shape, capacities_nodes, edge_costs)
+    time_flow = time.time() - t0
     # Implement flow
     implement_flow(muYAtomicDataList, muYAtomicIndicesList, edges, w, capacities_nodes, basic_shape)
-    return w
+    return w, time_flow
 
 
 
