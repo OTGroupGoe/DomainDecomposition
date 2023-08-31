@@ -70,6 +70,7 @@ params["aux_dump_after_each_layer"] = True
 params["aux_dump_finest"] = True # TODO: change
 params["aux_evaluate_scores"] = False # TODO: allow evaluation
 params["sinkhorn_max_iter"] = 2000
+
 params["aux_dump_after_each_eps"] = False
 params["aux_dump_after_each_iter"] = False
 params["domdec_cellsize"] = 4
