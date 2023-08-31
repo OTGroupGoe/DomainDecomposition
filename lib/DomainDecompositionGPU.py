@@ -36,25 +36,30 @@ def pad_tensor(a, padding, pad_value=0):
     return b
 
 
-def pad_replicate_2D(a, padding):
+def pad_replicate(a, padding):
     """
     Pad tensor `a` replicating values at boundary `paddding` times.
     """
     shape = a.shape
-    new_shape = tuple(s + 2*padding for s in shape)
-    original_locations = tuple(slice(padding, s+padding) for s in shape)
-    b = torch.zeros(new_shape, dtype=a.dtype, device=a.device)
-    b[original_locations] = a
-    # TODO: from here is specific for 2D
-    s1, s2 = shape
-    for i in range(padding):
-        # Copy closest slice in the direction of the true array
-        b[padding-1-i, :] = b[padding-i, :]
-        b[s1+padding+i, :] = b[s1+padding-1+i, :]
-        b[:, padding-1-i] = b[:, padding-i]
-        b[:, s2+padding+i] = b[:, s2+padding-1+i]
+    if len(shape) == 1:
+        replicate = torch.nn.ReplicationPad1d(padding)
+    elif len(shape) == 2:
+        replicate = torch.nn.ReplicationPad2d(padding)
+    elif len(shape) == 3:
+        replicate = torch.nn.ReplicationPad3d(padding)
+    else:
+        NotImplementedError("Not implemented for dim > 3")
+        
+    # nn expects batch and channel dimensions
+    shape_nn = (1,1)+shape
+    a = a.view(shape_nn)
+    if a.dtype == torch.int32:
+        # Transform to double without losing precission and then back
+        b = replicate(a.double()).int()
+    else:
+        b = replicate(a)
+    b = b.view(tuple(s + 2 for s in shape))
     return b
-
 
 def reformat_indices_2D(index, shapeY):
     """
@@ -706,6 +711,7 @@ def BatchDomDecIteration_CUDA(
     )
     info["time_sinkhorn"] = time.time() - t0
     # Renormalize Nu_basic
+    print("shape nu basic", Nu_basic.shape)
     Nu_basic = Nu_basic * \
         (muYCell / (Nu_basic.sum(dim=1) + 1e-30))[:, None, :, :]
 
@@ -892,7 +898,7 @@ def CUDA_balance(muXCell, Nu_basic):
     Nu_basic = Nu_basic.view(B, 4, -1)
     atomic_mass_nu = Nu_basic.sum(-1)
     mass_delta = atomic_mass_nu - atomic_mass
-    print(f"balancing with {Nu_basic.dtype}")
+    # print(f"balancing with {Nu_basic.dtype}")
     if Nu_basic.dtype == torch.float64:
         LogSinkhornGPU.BalanceCUDA_64(Nu_basic, mass_delta, 1e-12)
     elif Nu_basic.dtype == torch.float32:
@@ -1036,20 +1042,60 @@ def combine_cells(Nu_basic, global_left, global_bottom, sum_indices, weights=1):
 #     return Nu_comp, global_composite_left, global_composite_bottom
 
 
-def basic_to_composite_CUDA_2D(Nu_basic, global_left, global_bottom):
-    b1, b2 = Nu_basic.shape[:2]
-    B = b1*b2
-    # TODO: why are these not possible with view?
-    Nu_basic = Nu_basic.reshape(B, *Nu_basic.shape[2:])
-    global_left = global_left.reshape(B)
-    global_bottom = global_bottom.reshape(B)
-
-    # Get indices along which to sum
+def basic_to_composite_CUDA_2D(Nu_basic, left, bottom, basic_shape, partition):
+    # Nu_basic is of shape (B, s1, ..., sd)
+    # TODO: change signature left,bottom to allow for higher dimensional
     torch_options_int = dict(dtype=torch.int32, device=Nu_basic.device)
-    sum_indices = torch.arange(B, **torch_options_int).view(b1//2, 2, b2//2, 2) \
-        .permute(0, 2, 1, 3).reshape(B//4, 4)
+    torch_options = dict(dtype=Nu_basic.dtype, device=Nu_basic.device)
+    dim = len(basic_shape)
+    basic_indices = torch.arange(np.prod(basic_shape), **torch_options_int).view(basic_shape)
+    weights = torch.ones(basic_shape, **torch_options)
 
-    return combine_cells(Nu_basic, global_left, global_bottom, sum_indices)
+    # For A cells do nothing, for B cells pad
+    if partition == "B":
+        basic_indices = pad_replicate(basic_indices, 1)
+        weights = pad_tensor(weights, 1, pad_value = 0.0)
+        basic_shape = tuple(s+2 for s in basic_shape)
+    
+    # Turn sum_indices and weights to composite shape
+    if dim == 1:
+        b1 = basic_shape[0]
+        sum_indices = basic_indices.view(b1//2, 2)
+        weights = weights.view(b1//2, 2)
+    if dim == 2:
+        b1, b2 = basic_shape
+        sum_indices = basic_indices.view(b1//2, 2, b2//2, 2) \
+            .permute(0,2,1,3).reshape((b1*b2)//4, 4)
+        weights = weights.view(b1//2, 2, b2//2, 2) \
+            .permute(0,2,1,3).reshape((b1*b2)//4, 4)
+    elif dim == 3:
+        b1, b2, b3 = basic_shape
+        sum_indices = basic_indices.view(b1//2, 2, b2//2, 2, b3//2, 2) \
+            .permute(0,2,4,1,3,5).reshape((b1*b2*b3)//8, 8)
+        weights = weights.view(b1//2, 2, b2//2, 2, b3//2, 2) \
+            .permute(0,2,4,1,3,5).reshape((b1*b2*b3)//8, 8)
+    else: 
+        raise NotImplementedError("not implemented for dim > 3")
+
+    return combine_cells(Nu_basic, left, bottom, sum_indices, weights)
+
+
+
+    ####################################
+    # previous implementation
+    # b1, b2 = Nu_basic.shape[:2]
+    # B = b1*b2
+    # # TODO: why are these not possible with view?
+    # Nu_basic = Nu_basic.reshape(B, *Nu_basic.shape[2:])
+    # left = left.reshape(B)
+    # bottom = bottom.reshape(B)
+
+    # # Get indices along which to sum
+    # torch_options_int = dict(dtype=torch.int32, device=Nu_basic.device)
+    # sum_indices = torch.arange(B, **torch_options_int).view(b1//2, 2, b2//2, 2) \
+    #     .permute(0, 2, 1, 3).reshape(B//4, 4)
+
+    # return combine_cells(Nu_basic, left, bottom, sum_indices)
 
 
 def unpack_cell_marginals_2D_box(Nu_basic, left, bottom, shapeY):
@@ -1080,45 +1126,20 @@ def BatchIterateBox(
     muY, posY, dx, eps,
     muXJ, posXJ, alphaJ,
     nu_basic, left, bottom, shapeY,
-    partition="A",
+    basic_shape, partition="A",
     SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
     SinkhornInnerIter=100, BatchSize=np.inf
 ):
 
-    # assert BatchSize == np.inf, "not implemented for partial BatchSize"
-    if partition == "A":
-        # Global nu_basic has shape (b1, b2, w, h)
-        # TODO: generalize for 3D
-        nu_basic_part = nu_basic
-        left_part = left
-        bottom_part = bottom
-    else:
-        (b1, b2, w, h) = nu_basic.shape
-        torch_options = dict(device=nu_basic.device, dtype=nu_basic.dtype)
-        nu_basic_part = torch.zeros((b1+2, b2+2, w, h), **torch_options)
-        nu_basic_part[1:-1, 1:-1] = nu_basic
-        # Pad left and bottom with extension of actual values
-        left_part = pad_replicate_2D(left, 1)
-        bottom_part = pad_replicate_2D(bottom, 1)
-
     # Solve batch
-    alphaJ, betaJ, nu_basic_part, left_part, bottom_part, info = \
+    # TODO: minibatches
+    alphaJ, betaJ, nu_basic, left, bottom, info = \
         BatchDomDecIterationBox_CUDA(
             SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
             muXJ, posXJ, alphaJ,
-            nu_basic_part, left_part, bottom_part,
+            nu_basic, left, bottom, basic_shape, partition,
             SinkhornMaxIter, SinkhornInnerIter
         )
-    if partition == "A":
-        # TODO: generalize for 3D
-
-        nu_basic = nu_basic_part
-        left = left_part
-        bottom = bottom_part
-    else:
-        nu_basic = nu_basic_part[1:-1, 1:-1]
-        left = left_part[1:-1, 1:-1]
-        bottom = bottom_part[1:-1, 1:-1]
 
     return alphaJ, nu_basic, left, bottom, info
     # for jsub,j in enumerate(partitionDataCompCellsBatch):
@@ -1148,8 +1169,8 @@ def BatchIterateBox(
 #         nu_basic_part = torch.zeros((b1+2, b2+2, w, h), **torch_options)
 #         nu_basic_part[1:-1,1:-1] = nu_basic
 #         # Pad left and bottom with extension of actual values
-#         left_part = pad_replicate_2D(left,1)
-#         bottom_part = pad_replicate_2D(bottom,1)
+#         left_part = pad_replicate(left,1)
+#         bottom_part = pad_replicate(bottom,1)
 
 #     BatchTotal = muXJ.shape[0]
 #     if BatchSize == np.inf:
@@ -1212,7 +1233,7 @@ def BatchDomDecIterationBox_CUDA(
         SinkhornError, SinkhornErrorRel, muY, posYCell, dx, eps, shapeY,
         # partitionDataCompCellIndices,
         muXCell, posXCell, alphaCell,
-        nu_basic, left, bottom,
+        nu_basic, left, bottom, basic_shape, partition,
         SinkhornMaxIter, SinkhornInnerIter, balance=True):
 
     info = dict()
@@ -1220,10 +1241,10 @@ def BatchDomDecIterationBox_CUDA(
     # Get basic shape size
 
     t0 = time.time()
-    b1, b2, w0, h0 = nu_basic.shape
+    _, w0, h0 = nu_basic.shape
     torch_options = dict(device=nu_basic.device, dtype=nu_basic.dtype)
     torch_options_int = dict(device=nu_basic.device, dtype=torch.int32)
-    c1, c2 = b1//2, b2//2
+    b1, b2 = basic_shape
     # nu_basic = nu_basic.reshape(c1, 2, c2, 2, w0, h0).permute(0, 2, 1, 3, 4, 5) \
     #     .reshape(c1*c2, 4, w0, h0)
     # left = left.reshape(c1, 2, c2, 2).permute(0, 2, 1, 3).reshape(c1*c2, 4)
@@ -1231,7 +1252,7 @@ def BatchDomDecIterationBox_CUDA(
 
     # Get composite marginals as well as new left and right
     muYCell, left, bottom = basic_to_composite_CUDA_2D(
-        nu_basic, left, bottom)
+        nu_basic, left, bottom, basic_shape, partition)
     info["time_bounding_box"] = time.time() - t0
 
     # TODO: get subMuY; for now just copy muYCell
@@ -1256,10 +1277,16 @@ def BatchDomDecIterationBox_CUDA(
             SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,
             SinkhornInnerIter=SinkhornInnerIter
         )
+
     # Renormalize nu_basic
-    nu_basic = nu_basic * \
-        (muYCell / (nu_basic.sum(dim=1) + 1e-40))[:, None, :, :]
+    # Here nu_basic is still in form (ncomp, C, *geom_shape)
+    nu_basic *= (muYCell / (nu_basic.sum(dim=1) + 1e-40))[:, None, :, :]
     info["time_sinkhorn"] = time.time() - t0
+
+    # NOTE: balancing needs nu_basic in this precise shape. But for outputting
+    # we still need to permute    
+
+    # Extract 
 
     # # 5. Turn back to numpy
     # nu_basic = nu_basic.cpu().numpy()
@@ -1281,16 +1308,30 @@ def BatchDomDecIterationBox_CUDA(
     # TODO: if too slow or too much memory turn to dedicated cuda function
     nu_basic[nu_basic <= 1e-15] = 0.0
     info["time_truncation"] = time.time() - t0
+    
 
-    # Turn back to rectangular shape
-    nu_basic = nu_basic.reshape(c1, c2, 2, 2, w, h).permute(0, 2, 1, 3, 4, 5) \
-        .reshape(b1, b2, w, h)
-
+    # Extend left and right to basic cells
+    if partition == "B":
+        b1, b2 = b1+2, b2+2
+    c1, c2 = b1//2, b2//2
+    # Permute nu_basic
+    _, _, w, h = nu_basic.shape
+    nu_basic = nu_basic.view(c1, c2, 2, 2, w, h).permute(0,2,1,3,4,5).reshape(-1, w, h)
     basic_expander = torch.ones((1, 2, 1, 2), **torch_options_int)
-    left = left.reshape(c1, 1, c1, 1) * basic_expander
-    left = left.view(b1, b2)
-    bottom = bottom.reshape(c1, 1, c1, 1) * basic_expander
-    bottom = bottom.view(b1, b2)
+    left = left.reshape(c1, 1, c2, 1) * basic_expander
+
+    left = left.ravel()
+    bottom = bottom.reshape(c1, 1, c2, 1) * basic_expander
+    bottom = bottom.ravel()
+    if partition == "B":
+        # trim nu_basic, left and bottom
+        basic_indices_true = torch.arange(b1*b2, 
+            device=nu_basic.device, dtype=torch.int64
+            ).view(b1, b2)[1:-1, 1:-1].ravel()
+        nu_basic = nu_basic[basic_indices_true]
+        left = left[basic_indices_true]
+        bottom = bottom[basic_indices_true]
+    
 
     # resultMuYAtomicDataList = []
     # # The batched version always computes directly the cell marginals
