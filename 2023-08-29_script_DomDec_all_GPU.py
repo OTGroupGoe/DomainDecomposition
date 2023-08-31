@@ -160,10 +160,9 @@ while nLayer <= nLayerFinest:
         # TODO: generalize for 3D
         b1, b2 = basic_shape
         c1, c2 = b1//2, b2//2
-        geom_shape = Nu_basic.shape[1:]
-        Nu_basic_old = Nu_basic.reshape(b1*b2, *geom_shape)
-        left_old = left.reshape(b1*b2)
-        bottom_old = bottom.reshape(b1*b2)
+        Nu_basic_old = Nu_basic
+        left_old = left
+        bottom_old = bottom
         muXLOld = muXL
         muYLOld = muYL
         basic_mass_old = basic_mass
