@@ -134,8 +134,8 @@ def solve_grid_flow_problem(size, cap_nodes, cost_edges):
     nodes = np.arange(0,N).reshape(n1, n2)
 
     # capacity edges
-    cap_start = np.arange(0, N)
-    cap_end = cap_start + N
+    cap_start = nodes.ravel()
+    cap_end = nodes.ravel() + N
 
     # up edges
     up_start = nodes[:,:-1].ravel() + N
@@ -184,6 +184,7 @@ def solve_grid_flow_problem(size, cap_nodes, cost_edges):
     flows = solver_flow.flows(all_arcs)
     nodes_engaged = flows[:N]
     w = flows[N:].astype(np.float64) * (max_cap / res_cap)
+    # w = flows.astype(np.float64) * (max_cap / res_cap)
     return w
 
     
@@ -242,6 +243,98 @@ def flow_update(muYAtomicDataList, muYAtomicIndicesList, last_solver,
     # Implement flow
     implement_flow(muYAtomicDataList, muYAtomicIndicesList, edges, w, capacities_nodes, basic_shape)
     return w, time_flow
+
+def implement_flow_CUDA(Nu_basic, left, bottom, edges, flow, basic_mass, basic_shape):
+    # TODO: generalize for 3D
+    b1, b2 = basic_shape
+    B = np.prod(basic_shape)
+
+    # If there's no flow, abort
+    dim = len(basic_shape)
+    # Each basic cell has at most 2*dim + 1 incoming edges: the loop and two 
+    # from every direction
+
+    torch_options = dict(dtype=Nu_basic.dtype, device=Nu_basic.device)
+    torch_options_int = dict(dtype=torch.int32, device=Nu_basic.device)
+    basic_index = torch.arange(B, **torch_options_int)
+    sum_indices = torch.zeros(B, 2*dim+1, **torch_options_int)
+    weights = torch.zeros(B, 2*dim+1, **torch_options)
+    idx = torch.div(basic_index, b2, rounding_mode = "trunc")
+    idy = (basic_index % b2)
+
+    flow = torch.tensor(flow, **torch_options)
+
+    if flow[B:].sum() == 0:
+        return Nu_basic, left, bottom
+    else: 
+        # Capacity edges
+        sum_indices[:,0] = basic_index 
+        weights[:,0] = basic_mass.ravel() 
+        # At the end we will remove the outgoing mass
+
+        cnt_w = 0 # Counter for weights
+        # Edges going up: incoming from below
+        sum_indices[:,1] = idx*b2 + (idy-1)
+        # Cells in the bottom row have no such incoming edge
+        remove_edge = idy == 0
+        sum_indices[remove_edge, 1] = -1
+        n_edges = b1*(b2-1)
+        weights[~remove_edge, 1] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Edges going right
+        sum_indices[:,2] = (idx-1)*b2 + idy
+        remove_edge = idx == 0
+        sum_indices[remove_edge, 2] = -1
+        n_edges = (b1-1)*b2
+        weights[~remove_edge,2] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Edges going down
+        sum_indices[:,3] = idx*b2 + (idy+1)
+        remove_edge = idy == b2-1
+        n_edges = b1*(b2-1)
+        sum_indices[remove_edge, 3] = -1
+        weights[~remove_edge,3] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Edges going left
+        sum_indices[:,4] = (idx+1)*b2 + idy
+        remove_edge = idx == b1-1
+        sum_indices[remove_edge, 4] = -1
+        n_edges = (b1-1)*b2
+        weights[~remove_edge,4] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Fill weights in 0-th column
+
+        weights[:,0] -= torch.sum(weights[:,1:], dim = 1)
+
+
+        print("sum_indices")
+        print(sum_indices)
+        print("weights")
+        print(weights)
+
+
+        # TODO: for now renormalize Nu_basic. If it doesn't work well, renormalize weights
+        Nu_basic = Nu_basic / basic_mass.view(-1, 1, 1)
+
+        Nu_basic, left, bottom = DomDecGPU.combine_cells(Nu_basic, left, bottom, 
+                                                        sum_indices, weights)
+        return Nu_basic, left, bottom
+
+def flow_update_CUDA(Nu_basic, left, bottom, last_solver, 
+                muX_basic, basic_mass, gamma, basic_shape, 
+                capacities_nodes, edges, cellsize):
+    # Get induced edge costs
+    edge_costs = get_edge_costs_2D(last_solver, basic_shape, cellsize, muX_basic, basic_mass, gamma)
+    # Solve min cost flow problem
+    flow = solve_grid_flow_problem(basic_shape, capacities_nodes, edge_costs)
+    # Implement flow
+    Nu_basic, left, bottom = implement_flow_CUDA(Nu_basic, left, bottom, edges, 
+                                                 flow, basic_mass, basic_shape)
+    return flow, Nu_basic, left, bottom
 
 
 
