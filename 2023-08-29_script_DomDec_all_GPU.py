@@ -88,7 +88,7 @@ params["batchsize"] = np.inf
 muX, posX, shapeX = Common.importMeasure(params["setup_fn1"])
 muY, posY, shapeY = Common.importMeasure(params["setup_fn2"])
 
-# Get multiscale hierarchy
+# Get multiscale torch hierarchy
 muX_final = torch.tensor(muX, **torch_options).view(shapeX)
 muY_final = torch.tensor(muY, **torch_options).view(shapeX)
 muX_layers = DomDecGPU.get_multiscale_layers(muX_final, shapeX)
@@ -139,7 +139,7 @@ evaluationData["timeList_global"] = []
 
 evaluationData["sparsity_muYAtomicEntries"] = []
 
-globalTime1 = time.time()
+globalTime1 = time.perf_counter()
 
 
 nLayerTop = params["hierarchy_top"]
@@ -149,7 +149,7 @@ nLayer = nLayerTop
 while nLayer <= nLayerFinest:
 
     ################################################################################################################################
-    timeRefine1 = time.time()
+    timeRefine1 = time.perf_counter()
     print("layer: {:d}".format(nLayer))
     # setup hiarchy layer
 
@@ -160,7 +160,7 @@ while nLayer <= nLayerFinest:
         # TODO: generalize for 3D
         b1, b2 = basic_shape
         c1, c2 = b1//2, b2//2
-        Nu_basic_old = Nu_basic
+        muY_basic_old = muY_basic
         left_old = left
         bottom_old = bottom
         muXLOld = muXL
@@ -250,8 +250,8 @@ while nLayer <= nLayerFinest:
         #     np.arange(muYL_np.shape[0], dtype=np.int32)
         #     for _ in range(len(atomicCells))
         # ]
-        Nu_basic = basic_mass.view(-1, 1, 1) * muYL.view(1, *shapeYL)
-        B = Nu_basic.shape[0]
+        muY_basic = basic_mass.view(-1, 1, 1) * muYL.view(1, *shapeYL)
+        B = muY_basic.shape[0]
         left = torch.zeros(B, **torch_options_int)
         bottom = torch.zeros(B, **torch_options_int)
 
@@ -263,8 +263,8 @@ while nLayer <= nLayerFinest:
     else:
         # refine atomic Y marginals from previous layer
 
-        Nu_basic, left, bottom = DomDecGPU.refine_marginals_CUDA(
-            Nu_basic_old, left_old, bottom_old,
+        muY_basic, left, bottom = DomDecGPU.refine_marginals_CUDA(
+            muY_basic_old, left_old, bottom_old,
             basic_mass_old, basic_mass, muYLOld, muYL
         )
 
@@ -299,23 +299,23 @@ while nLayer <= nLayerFinest:
     betaBDataList = [None for i in range(alphaB.shape[0])]
     betaBIndexList = [None for i in range(alphaB.shape[0])]
 
-    timeRefine2 = time.time()
+    timeRefine2 = time.perf_counter()
     evaluationData["time_refine"] += timeRefine2-timeRefine1
     ################################################################################################################################
 
     if params["aux_printLayerConsistency"]:
-        # TODO: rephrase nu_basic
+        # TODO: rephrase muY_basic
         # muXAtomicSums = np.array([np.sum(a) for a in muYAtomicDataList])
-        muXAtomicSums = torch.sum(Nu_basic, dim=(2, 3))
+        muXAtomicSums = torch.sum(muY_basic, dim=(2, 3))
         print("layer partition consistency: ", torch.sum(
             torch.abs(muXAtomicSums-basic_mass)))
 
     # TODO: don't reshape
-    # Nu_basic = Nu_basic.view(*basic_shape, *Nu_basic.shape[1:])
+    # muY_basic = muY_basic.view(*basic_shape, *muY_basic.shape[1:])
     # left = left.view(basic_shape)
     # bottom = bottom.view(basic_shape)
     # print("\n\n")
-    # print("Nu_basic:", Nu_basic.shape)
+    # print("muY_basic:", muY_basic.shape)
     # print("left\n", left)
     # print("bottom\n", bottom)
 
@@ -331,7 +331,7 @@ while nLayer <= nLayerFinest:
                     print("dumping to file: aux_dump_finest_pre...")
                     with open(params["setup_dumpfile_finest_pre"], 'wb') as f:
                         pickle.dump([muXL, muYL, eps, dx,
-                                     Nu_basic, left, bottom,
+                                     muY_basic, left, bottom,
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
                     print("dumping done.")
@@ -340,10 +340,10 @@ while nLayer <= nLayerFinest:
 
             ################################
             # iteration A
-            time1 = time.time()
-            alphaA, Nu_basic, left, bottom, info = DomDecGPU.BatchIterateBox(
-                muY, posY, dx, eps,
-                muXA, posXA, alphaA, Nu_basic, left, bottom, shapeY, basic_shape, "A",
+            time1 = time.perf_counter()
+            alphaA, muY_basic, left, bottom, info = DomDecGPU.BatchIterateBox(
+                muYL, posY, dx, eps,
+                muXA, posXA, alphaA, muY_basic, left, bottom, shapeY, basic_shape, "A",
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
@@ -351,7 +351,7 @@ while nLayer <= nLayerFinest:
                 BatchSize=params["batchsize"]
             )
 
-            time2 = time.time()
+            time2 = time.perf_counter()
             evaluationData["time_iterate"] += time2-time1
             evaluationData["time_sinkhorn"] += info["time_sinkhorn"]
             evaluationData["time_measureBalancing"] += info["time_balance"]
@@ -362,8 +362,8 @@ while nLayer <= nLayerFinest:
 
             ################################
             # count total entries in muYAtomicList:
-            bbox_size = tuple(Nu_basic.shape[1:])
-            nrEntries = int(np.prod(Nu_basic.shape))
+            bbox_size = tuple(muY_basic.shape[1:])
+            nrEntries = int(np.prod(muY_basic.shape))
             print(f"bbox: {bbox_size}")
             evaluationData["sparsity_muYAtomicEntries"].append(
                 [nLayer, nEps, nIterations, 0, nrEntries])
@@ -375,7 +375,7 @@ while nLayer <= nLayerFinest:
                     print("dumping to file: after iter...")
                     with open(getDumpName("afterIter_nIter{:d}_A".format(nIterations)), 'wb') as f:
                         pickle.dump([muXL, muYL, eps, dx,
-                                     Nu_basic, left, bottom,
+                                     muY_basic, left, bottom,
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
                     print("dumping done.")
@@ -383,7 +383,7 @@ while nLayer <= nLayerFinest:
 
             ################################
             # global time
-            globalTime2 = time.time()
+            globalTime2 = time.perf_counter()
             print("time:", globalTime2-globalTime1)
             evaluationData["timeList_global"].append(
                 [nLayer, nEps, nIterations, 0, globalTime2-globalTime1])
@@ -391,27 +391,18 @@ while nLayer <= nLayerFinest:
             ################################
 
             ################################
-            # count total entries in muYAtomicList:
-            bbox_size = tuple(Nu_basic.shape[1:])
-            nrEntries = int(np.prod(Nu_basic.shape))
-            print(f"bbox: {bbox_size}")
-            evaluationData["sparsity_muYAtomicEntries"].append(
-                [nLayer, nEps, nIterations, 1, nrEntries])
-            ################################
-
-            ################################
             # iteration B
-            time1 = time.time()
-            alphaB, Nu_basic, left, bottom, info = DomDecGPU.BatchIterateBox(
-                muY, posY, dx, eps,
-                muXB, posXB, alphaB, Nu_basic, left, bottom, shapeY, basic_shape, "B",
+            time1 = time.perf_counter()
+            alphaB, muY_basic, left, bottom, info = DomDecGPU.BatchIterateBox(
+                muYL, posY, dx, eps,
+                muXB, posXB, alphaB, muY_basic, left, bottom, shapeY, basic_shape, "B",
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
                 SinkhornInnerIter=params["sinkhorn_inner_iter"],
                 BatchSize=params["batchsize"]
             )
-            time2 = time.time()
+            time2 = time.perf_counter()
             evaluationData["time_iterate"] += time2-time1
             evaluationData["time_sinkhorn"] += info["time_sinkhorn"]
             evaluationData["time_measureBalancing"] += info["time_balance"]
@@ -428,7 +419,7 @@ while nLayer <= nLayerFinest:
                     print("dumping to file: after iter...")
                     with open(getDumpName("afterIter_nIter{:d}_B".format(nIterations)), 'wb') as f:
                         pickle.dump([muXL, muYL, eps, dx,
-                                     Nu_basic, left, bottom,
+                                     muY_basic, left, bottom,
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
                     print("dumping done.")
@@ -436,14 +427,14 @@ while nLayer <= nLayerFinest:
 
             ################################
             if params["aux_printLayerConsistency"]:
-                muXAtomicSums = torch.sum(Nu_basic, dim=(2, 3))
+                muXAtomicSums = torch.sum(muY_basic, dim=(2, 3))
                 print("layer partition consistency: ", torch.sum(
                     torch.abs(muXAtomicSums-basic_mass)))
             ################################
 
             ################################
             # global time
-            globalTime2 = time.time()
+            globalTime2 = time.perf_counter()
             print("time:", globalTime2-globalTime1)
             evaluationData["timeList_global"].append(
                 [nLayer, nEps, nIterations, 1, globalTime2-globalTime1])
@@ -457,7 +448,7 @@ while nLayer <= nLayerFinest:
                 print("dumping to file: after eps...")
                 with open(getDumpName("afterEps_nEps{:d}".format(nEps)), 'wb') as f:
                     pickle.dump([muXL, muYL, eps, dx,
-                                 Nu_basic, left, bottom,
+                                 muY_basic, left, bottom,
                                  muXA.cpu(), alphaA.cpu(),
                                  muXB.cpu(), alphaB.cpu()], f, 2)
                 print("dumping done.")
@@ -469,7 +460,7 @@ while nLayer <= nLayerFinest:
         print("dumping to file: after layer...")
         with open(getDumpName("afterLayer_l{:d}".format(nLayer)), 'wb') as f:
             pickle.dump([muXL, muYL, eps, dx,
-                         Nu_basic, left, bottom,
+                         muY_basic, left, bottom,
                          muXA.cpu(), alphaA.cpu(),
                          muXB.cpu(), alphaB.cpu()], f, 2)
         print("dumping done.")
@@ -486,7 +477,7 @@ if params["aux_dump_finest"]:
     print("dumping to file: aux_dump_finest...")
     with open(params["setup_dumpfile_finest"], 'wb') as f:
         pickle.dump([muXL, muYL, eps, dx,
-                     Nu_basic, left, bottom,
+                     muY_basic, left, bottom,
                      muXA.cpu(), alphaA.cpu(),
                      muXB.cpu(), alphaB.cpu()], f, 2)
     print("dumping done.")
