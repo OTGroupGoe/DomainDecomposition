@@ -49,9 +49,9 @@ def pad_replicate(a, padding):
         replicate = torch.nn.ReplicationPad3d(padding)
     else:
         NotImplementedError("Not implemented for dim > 3")
-        
+
     # nn expects batch and channel dimensions
-    shape_nn = (1,1)+shape
+    shape_nn = (1, 1)+shape
     a = a.view(shape_nn)
     if a.dtype == torch.int32:
         # Transform to double without losing precission and then back
@@ -60,6 +60,7 @@ def pad_replicate(a, padding):
         b = replicate(a)
     b = b.view(tuple(s + 2 for s in shape))
     return b
+
 
 def reformat_indices_2D(index, shapeY):
     """
@@ -412,8 +413,9 @@ class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
         # Check that all coordinates have same grid spacing
         dx = x1[0, 1]-x1[0, 0]
         for z in zs:
-            assert torch.max(torch.abs(torch.diff(z, dim=-1)-dx)) < 1e-6, \
-                "Grid is not equispaced"
+            if z.shape[-1] > 1:  # otherwise diff yields shape 0
+                assert torch.max(torch.abs(torch.diff(z, dim=-1)-dx)) < 1e-6, \
+                    "Grid is not equispaced"
 
         # Check geometric dimensions
         Ms = LogSinkhornGPU.geom_dims(mu)
@@ -711,7 +713,7 @@ def BatchDomDecIteration_CUDA(
     )
     info["time_sinkhorn"] = time.perf_counter() - t0
     # Renormalize muY_basic
-    print("shape nu basic", muY_basic.shape)
+    # print("shape nu basic", muY_basic.shape)
     muY_basic = muY_basic * \
         (muYCell / (muY_basic.sum(dim=1) + 1e-30))[:, None, :, :]
 
@@ -818,14 +820,14 @@ def BatchSolveOnCell_CUDA_float(
 
     msg = solver.iterate_until_max_error()
 
-    print(f"solving with {solver.alpha.dtype}")
+    # print(f"solving with {solver.alpha.dtype}")
     alpha = solver.alpha
     beta = solver.beta
     # Compute cell marginals directly
     pi_basic = get_cell_marginals(
         solver.muref, solver.nuref, alpha, beta, C[0], C[1], eps
     )
-    print(f"pi is {pi_basic.dtype}")
+    # print(f"pi is {pi_basic.dtype}")
 
     # Wrap solver and possibly runtime info into info dictionary
     info = {
@@ -979,6 +981,7 @@ def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
     global_composite_minus = global_basic_minus[sum_indices_clean].amin(-1)
     global_composite_plus = global_basic_plus[sum_indices_clean].amax(-1)
     composite_extent = global_composite_plus - global_composite_minus + 1
+    # print("axis =", axis, "composite_extent =\n", composite_extent)
 
     # Turn basic_minus and basic_extent into shape of sum_indices
     basic_minus = basic_minus[sum_indices_clean]
@@ -1049,15 +1052,17 @@ def basic_to_composite_CUDA_2D(muY_basic, left, bottom, basic_shape, partition):
     torch_options_int = dict(dtype=torch.int32, device=muY_basic.device)
     torch_options = dict(dtype=muY_basic.dtype, device=muY_basic.device)
     dim = len(basic_shape)
-    basic_indices = torch.arange(np.prod(basic_shape), **torch_options_int).view(basic_shape)
+    basic_indices = torch.arange(
+        np.prod(basic_shape), **torch_options_int).view(basic_shape)
     weights = torch.ones(basic_shape, **torch_options)
 
+    # print("Basic to composite")
     # For A cells do nothing, for B cells pad
     if partition == "B":
         basic_indices = pad_replicate(basic_indices, 1)
-        weights = pad_tensor(weights, 1, pad_value = 0.0)
+        weights = pad_tensor(weights, 1, pad_value=0.0)
         basic_shape = tuple(s+2 for s in basic_shape)
-    
+
     # Turn sum_indices and weights to composite shape
     if dim == 1:
         b1 = basic_shape[0]
@@ -1066,21 +1071,19 @@ def basic_to_composite_CUDA_2D(muY_basic, left, bottom, basic_shape, partition):
     if dim == 2:
         b1, b2 = basic_shape
         sum_indices = basic_indices.view(b1//2, 2, b2//2, 2) \
-            .permute(0,2,1,3).reshape((b1*b2)//4, 4)
+            .permute(0, 2, 1, 3).reshape((b1*b2)//4, 4)
         weights = weights.view(b1//2, 2, b2//2, 2) \
-            .permute(0,2,1,3).reshape((b1*b2)//4, 4)
+            .permute(0, 2, 1, 3).reshape((b1*b2)//4, 4)
     elif dim == 3:
         b1, b2, b3 = basic_shape
         sum_indices = basic_indices.view(b1//2, 2, b2//2, 2, b3//2, 2) \
-            .permute(0,2,4,1,3,5).reshape((b1*b2*b3)//8, 8)
+            .permute(0, 2, 4, 1, 3, 5).reshape((b1*b2*b3)//8, 8)
         weights = weights.view(b1//2, 2, b2//2, 2, b3//2, 2) \
-            .permute(0,2,4,1,3,5).reshape((b1*b2*b3)//8, 8)
-    else: 
+            .permute(0, 2, 4, 1, 3, 5).reshape((b1*b2*b3)//8, 8)
+    else:
         raise NotImplementedError("not implemented for dim > 3")
 
     return combine_cells(muY_basic, left, bottom, sum_indices, weights)
-
-
 
     ####################################
     # previous implementation
@@ -1114,6 +1117,10 @@ def unpack_cell_marginals_2D_box(muY_basic, left, bottom, shapeY):
     # Take to cpu if they are not
     # NOTE: extraction could be done for the whole muY_basic at once,
     # but then how to distinguish between slices.
+    if type(muY_basic) == torch.Tensor:
+        muY_basic = muY_basic.cpu().numpy()
+        left = left.cpu().numpy()
+        bottom = bottom.cpu().numpy()
     for k in range(B):
         # idx, idy = np.nonzero(muY_basic[k, i])
         idx, idy = np.nonzero(muY_basic[k] > 0)
@@ -1252,9 +1259,12 @@ def BatchDomDecIterationBox_CUDA(
     # bottom = bottom.reshape(c1, 2, c2, 2).permute(0, 2, 1, 3).reshape(c1*c2, 4)
 
     # Get composite marginals as well as new left and right
+    # print("Basic to composite")
+    # torch.set_printoptions(profile="full")
     muYCell, left, bottom = basic_to_composite_CUDA_2D(
         muY_basic, left, bottom, basic_shape, partition)
     info["time_bounding_box"] = time.perf_counter() - t0
+    # torch.set_printoptions(profile="default")  # reset
 
     # Get subMuY
     subMuY = crop_measure_to_box(muYCell, left, bottom, muY)
@@ -1284,9 +1294,9 @@ def BatchDomDecIterationBox_CUDA(
     info["time_sinkhorn"] = time.perf_counter() - t0
 
     # NOTE: balancing needs muY_basic in this precise shape. But for outputting
-    # we still need to permute    
+    # we still need to permute
 
-    # Extract 
+    # Extract
 
     # # 5. Turn back to numpy
     # muY_basic = muY_basic.cpu().numpy()
@@ -1308,7 +1318,6 @@ def BatchDomDecIterationBox_CUDA(
     # TODO: if too slow or too much memory turn to dedicated cuda function
     muY_basic[muY_basic <= 1e-15] = 0.0
     info["time_truncation"] = time.perf_counter() - t0
-    
 
     # Extend left and right to basic cells
     if partition == "B":
@@ -1316,7 +1325,8 @@ def BatchDomDecIterationBox_CUDA(
     c1, c2 = b1//2, b2//2
     # Permute muY_basic
     _, _, w, h = muY_basic.shape
-    muY_basic = muY_basic.view(c1, c2, 2, 2, w, h).permute(0,2,1,3,4,5).reshape(-1, w, h)
+    muY_basic = muY_basic.view(c1, c2, 2, 2, w, h).permute(
+        0, 2, 1, 3, 4, 5).reshape(-1, w, h)
     basic_expander = torch.ones((1, 2, 1, 2), **torch_options_int)
     left = left.reshape(c1, 1, c2, 1) * basic_expander
 
@@ -1325,13 +1335,12 @@ def BatchDomDecIterationBox_CUDA(
     bottom = bottom.ravel()
     if partition == "B":
         # trim muY_basic, left and bottom
-        basic_indices_true = torch.arange(b1*b2, 
-            device=muY_basic.device, dtype=torch.int64
-            ).view(b1, b2)[1:-1, 1:-1].ravel()
+        basic_indices_true = torch.arange(b1*b2,
+                                          device=muY_basic.device, dtype=torch.int64
+                                          ).view(b1, b2)[1:-1, 1:-1].ravel()
         muY_basic = muY_basic[basic_indices_true]
         left = left[basic_indices_true]
         bottom = bottom[basic_indices_true]
-    
 
     # resultMuYAtomicDataList = []
     # # The batched version always computes directly the cell marginals
@@ -1345,40 +1354,42 @@ def slide_marginals_to_corner(muY_basic, global_left, global_bottom):
     # Get smallest possible bounding box
     B = muY_basic.shape[0]
     torch_options_int = dict(device=muY_basic.device, dtype=torch.int)
-    sum_indices = torch.arange(B, **torch_options_int).view(-1,1)
+    sum_indices = torch.arange(B, **torch_options_int).view(-1, 1)
     muY_basic_slide, new_global_left, new_global_bottom = combine_cells(
         muY_basic, global_left, global_bottom, sum_indices
     )
     return muY_basic_slide, new_global_left, new_global_bottom
 
+
 def crop_measure_to_box(rho_composite, global_left, global_bottom, rho):
     """
     Get the reference measure rho in the same support as rho_composite
     """
-    
-    torch_options = dict(device=rho_composite.device, dtype=rho_composite.dtype)
+
+    torch_options = dict(device=rho_composite.device,
+                         dtype=rho_composite.dtype)
     torch_options_int = dict(device=rho_composite.device, dtype=torch.int32)
-    
+
     B, w, h = rho_composite.shape
     mask = rho_composite > 0
-    sum_indices_comp = torch.arange(B, **torch_options_int).view(-1,1)
+    sum_indices_comp = torch.arange(B, **torch_options_int).view(-1, 1)
 
     _, relative_left, comp_width, _, _ = \
         get_axis_bounds(rho_composite, mask, global_left, 0, sum_indices_comp)
 
     _, relative_bottom, comp_height, _, _ = \
-        get_axis_bounds(rho_composite, mask, global_bottom,1, sum_indices_comp)
+        get_axis_bounds(rho_composite, mask,
+                        global_bottom, 1, sum_indices_comp)
 
     # Reshape indices for AddWithOffsets
-    global_left = global_left.view(-1,1) + relative_left
-    global_bottom = global_bottom.view(-1,1) + relative_bottom
-    comp_width = comp_width.view(-1,1)
-    comp_height = comp_height.view(-1,1)
+    global_left = global_left.view(-1, 1) + relative_left
+    global_bottom = global_bottom.view(-1, 1) + relative_bottom
+    comp_width = comp_width.view(-1, 1)
+    comp_height = comp_height.view(-1, 1)
 
     # relative_left = relative_bottom = torch.zeros((B, 1), **torch_options_int)
     sum_indices_rho = torch.zeros((B, 1), **torch_options_int)
     weights = torch.ones((B, 1), **torch_options)
-
 
     reference_rho = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
         rho.view(1, *rho.shape), w, h,
@@ -1390,9 +1401,8 @@ def crop_measure_to_box(rho_composite, global_left, global_bottom, rho):
     return reference_rho
 
 
-
 def refine_marginals_CUDA(muY_basic, global_left, global_bottom,
-                     basic_mass_coarse, basic_mass_fine, nu_coarse, nu_fine):
+                          basic_mass_coarse, basic_mass_fine, nu_coarse, nu_fine):
 
     # Slide marginals to the corner
     muY_basic, global_left, global_bottom = slide_marginals_to_corner(
@@ -1402,7 +1412,7 @@ def refine_marginals_CUDA(muY_basic, global_left, global_bottom,
     # Get refinement weights for each Y point
     s1, s2 = nu_coarse.shape
     refinement_weights_Y = nu_fine.view(s1, 2, s2, 2).permute(1, 3, 0, 2) \
-                                .reshape(-1, s1, s2) / nu_coarse[None, :, :]
+        .reshape(-1, s1, s2) / nu_coarse[None, :, :]
 
     B = muY_basic.shape[0]
     C = refinement_weights_Y.shape[0]
@@ -1444,31 +1454,34 @@ def refine_marginals_CUDA(muY_basic, global_left, global_bottom,
     )
 
     # Refine nu basic by multiplying it with the refinement weights
-    muY_basic_refine_Y = refinement_weights_Y_box.view(B, C, w, h) * muY_basic.view(B, 1, w, h)
-    muY_basic_refine_Y = muY_basic_refine_Y.view(B, 2, 2, w, h).permute(0,3,1,4,2).reshape(B, 2*w, 2*h)
+    muY_basic_refine_Y = refinement_weights_Y_box.view(
+        B, C, w, h) * muY_basic.view(B, 1, w, h)
+    muY_basic_refine_Y = muY_basic_refine_Y.view(
+        B, 2, 2, w, h).permute(0, 3, 1, 4, 2).reshape(B, 2*w, 2*h)
 
     # Refine muX
     b1, b2 = basic_mass_coarse.shape
     refinement_weights_X = basic_mass_fine.view(b1, 2, b2, 2) \
-                            / basic_mass_coarse.view(b1, 1, b2, 1)
+        / basic_mass_coarse.view(b1, 1, b2, 1)
     muY_basic_refine = muY_basic_refine_Y.view(b1, 1, b2, 1, 2*w, 2*h) \
-                        * refinement_weights_X.view(b1, 2, b2, 2, 1, 1)
+        * refinement_weights_X.view(b1, 2, b2, 2, 1, 1)
     muY_basic_refine = muY_basic_refine.view(4*B, 2*w, 2*h)
 
     # Refine left and bottom
-    expand = torch.ones((1,2,1,2), **torch_options_int)
+    expand = torch.ones((1, 2, 1, 2), **torch_options_int)
     global_left_refine = 2*global_left.view(b1, 1, b2, 1) * expand
     global_left_refine = global_left_refine.view(-1)
     global_bottom_refine = 2*global_bottom.view(b1, 1, b2, 1) * expand
     global_bottom_refine = global_bottom_refine.view(-1)
-    
+
     return muY_basic_refine, global_left_refine, global_bottom_refine
+
 
 def get_current_Y_marginal(muY_basic, global_left, global_bottom, shapeY):
     B = muY_basic.shape[0]
     torch_options_int = dict(device=muY_basic.device, dtype=torch.int)
     torch_options = dict(device=muY_basic.device, dtype=muY_basic.dtype)
-    sum_indices_basic = torch.arange(B, **torch_options_int).view(-1,1)
+    sum_indices_basic = torch.arange(B, **torch_options_int).view(-1, 1)
 
     # Get axis bounds
     mask = muY_basic > 0
@@ -1480,15 +1493,18 @@ def get_current_Y_marginal(muY_basic, global_left, global_bottom, shapeY):
 
     sum_indices_global = torch.arange(B, **torch_options_int).view(1, -1)
     weights = torch.ones((1, B), **torch_options)
-    
+
     muY_sum = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
         muY_basic, *shapeY,
         weights, sum_indices_global,
-        global_left.view(1,-1), basic_left.view(1,-1), basic_width.view(1,-1),
-        global_bottom.view(1,-1), basic_bottom.view(1, -1), basic_height.view(1, -1)
+        global_left.view(1, -1), basic_left.view(1, -
+                                                 1), basic_width.view(1, -1),
+        global_bottom.view(1, -1), basic_bottom.view(1, -
+                                                     1), basic_height.view(1, -1)
     )
 
     return muY_sum.squeeze()
+
 
 def get_multiscale_layers(muX, shapeX):
     # TODO: Generalize for measures with sizes not powers of 2
@@ -1498,8 +1514,202 @@ def get_multiscale_layers(muX, shapeX):
     depth_X = int(np.log2(shapeX[0]))
     muX_layers = [muX]
     for i in range(depth_X):
-        n = shapeX[0]// 2**(i+1)
-        muX_i = muX_i.view(n, 2, n, 2).sum((1,3))
+        n = shapeX[0] // 2**(i+1)
+        muX_i = muX_i.view(n, 2, n, 2).sum((1, 3))
         muX_layers.append(muX_i)
     muX_layers.reverse()
     return muX_layers
+
+
+############################################
+# Minibatches
+############################################
+
+def MiniBatchIterate(
+    muY, posY, dx, eps,
+    muXJ, posXJ, alphaJ,
+    muY_basic, left, bottom, shapeY, partition,
+    SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
+    SinkhornInnerIter=100, batchsize=np.inf
+):
+    # partition is now of shape (B, C)
+    # partition[i,:] are the basic cells in composite cell i
+    # there can be -1's to encode for smaller cells
+
+    torch_options = dict(device = muY_basic.device, dtype = muY_basic.dtype)
+    # Compute minibatches
+    N_problems = partition.shape[0]
+    if batchsize > N_problems:
+        batchsize = N_problems
+
+    N_batches = int(np.ceil(N_problems / batchsize))
+    # Get uniform minibatches of size maybe smaller than batchsize
+    actual_batchsize = int(np.ceil(N_problems / N_batches))
+    minibatches = [
+        torch.arange(i*actual_batchsize,
+                     min((i+1)*actual_batchsize, N_problems), 
+                     device=muY_basic.device, dtype=torch.int64)
+        for i in range(N_batches)
+    ]
+    batch_muY_basic_list = []
+    info = None
+    dims_batch = np.zeros((N_batches, 2), dtype = np.int64)
+    for (i, batch) in enumerate(minibatches):
+        posXJ_batch = tuple(xi[batch] for xi in posXJ)
+        alpha_batch, beta_batch, basic_idx_batch, muY_basic_batch, left_batch,\
+            bottom_batch, info_batch = BatchDomDecIterationMinibatch_CUDA(
+            SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
+            muXJ[batch], posXJ_batch, alphaJ[batch],
+            muY_basic, left, bottom, partition[batch],
+            SinkhornMaxIter, SinkhornInnerIter
+        )
+        # Slide marginals to corner to get the smallest bbox later
+        muY_basic_batch, left_batch, bottom_batch = \
+            slide_marginals_to_corner(muY_basic_batch, left_batch, bottom_batch)
+
+        # Write results  that are easy to overwrite
+        alphaJ[batch] = alpha_batch
+        left[basic_idx_batch] = left_batch
+        bottom[basic_idx_batch] = bottom_batch
+        dims_batch[i, :] = muY_basic_batch.shape[1:]
+        if info is None:
+            info = info_batch
+        else:
+            for key in info_batch.keys():
+                if key[:4] == "time":
+                    info[key] += info_batch[key]
+
+        # Save basic cell marginals for the end
+        batch_muY_basic_list.append((basic_idx_batch, muY_basic_batch))
+
+    # Combine all batches together
+    # Get bounding box
+    w, h = np.max(dims_batch, axis = 0)
+    # print("dims_batch\n", dims_batch)
+    ## Continue here
+    B = muY_basic.shape[0]
+    muY_basic = torch.zeros(B, w, h, **torch_options)
+    for (basic_idx, muY_batch), box  in zip(batch_muY_basic_list, dims_batch):
+        w_i, h_i = box
+        # print(basic_idx)
+        muY_basic[basic_idx, :w_i, :h_i] = muY_batch
+
+    return alphaJ, muY_basic, left, bottom, info
+
+
+def BatchDomDecIterationMinibatch_CUDA(
+        SinkhornError, SinkhornErrorRel, muY, posYCell, dx, eps, shapeY,
+        # partitionDataCompCellIndices,
+        muXCell, posXCell, alphaCell,
+        muY_basic, left, bottom, partition,
+        SinkhornMaxIter, SinkhornInnerIter, balance=True):
+
+    info = dict()
+    # 1: compute composite cell marginals
+    # Get basic shape size
+
+    t0 = time.perf_counter()
+    _, w0, h0 = muY_basic.shape
+    torch_options = dict(device=muY_basic.device, dtype=muY_basic.dtype)
+    torch_options_int = dict(device=muY_basic.device, dtype=torch.int32)
+    # muY_basic = muY_basic.reshape(c1, 2, c2, 2, w0, h0).permute(0, 2, 1, 3, 4, 5) \
+    #     .reshape(c1*c2, 4, w0, h0)
+    # left = left.reshape(c1, 2, c2, 2).permute(0, 2, 1, 3).reshape(c1*c2, 4)
+    # bottom = bottom.reshape(c1, 2, c2, 2).permute(0, 2, 1, 3).reshape(c1*c2, 4)
+
+    # Get composite marginals as well as new left and right
+    # print("Basic to composite")
+    # torch.set_printoptions(profile="full")
+    muYCell, left_batch, bottom_batch = basic_to_composite_minibatch_CUDA_2D(
+        muY_basic, left, bottom, partition)
+    info["time_bounding_box"] = time.perf_counter() - t0
+    # torch.set_printoptions(profile="default")  # reset
+
+    # Get subMuY
+    subMuY = crop_measure_to_box(muYCell, left_batch, bottom_batch, muY)
+    # 2. Get bounding box dimensions
+    w, h = muYCell.shape[1:]
+    info["bounding_box"] = (w, h)
+
+    # 3: get physical coordinates of bounding box for each batched problem
+    posYCell = get_grid_cartesian_coordinates(
+        left_batch, bottom_batch, w, h, dx
+    )
+
+    # 4. Solve problem
+
+    t0 = time.perf_counter()
+    # print(muXCell.shape, muYCell.shape, posXCell[0].shape, posYCell[0].shape)
+    resultAlpha, resultBeta, muY_basic, info_solver = \
+        BatchSolveOnCell_CUDA(  # TODO: solve balancing problems in BatchSolveOnCell_CUDA
+            muXCell, muYCell, posXCell, posYCell, eps, alphaCell, subMuY,
+            SinkhornError, SinkhornErrorRel, SinkhornMaxIter=SinkhornMaxIter,
+            SinkhornInnerIter=SinkhornInnerIter
+        )
+
+    # Renormalize muY_basic
+    # Here muY_basic is still in form (ncomp, C, *geom_shape)
+    muY_basic *= (muYCell / (muY_basic.sum(dim=1) + 1e-40))[:, None, :, :]
+    info["time_sinkhorn"] = time.perf_counter() - t0
+
+    # NOTE: balancing needs muY_basic in this precise shape. But for outputting
+    # we still need to permute
+
+    # Extract
+
+    # # 5. Turn back to numpy
+    # muY_basic = muY_basic.cpu().numpy()
+
+    # # 6. Balance. Plain DomDec code works here
+    # t0 = time.perf_counter()
+    # if balance:
+    #     batch_balance(muXCell, muY_basic)
+    # info["time_balance"] = time.perf_counter() - t0
+
+    # 5. CUDA balance
+    t0 = time.perf_counter()
+    if balance:
+        CUDA_balance(muXCell, muY_basic)
+    info["time_balance"] = time.perf_counter() - t0
+
+    # 7. Truncate
+    t0 = time.perf_counter()
+    # TODO: if too slow or too much memory turn to dedicated cuda function
+    muY_basic[muY_basic <= 1e-15] = 0.0
+    info["time_truncation"] = time.perf_counter() - t0
+
+    # Extend left_batch and right to basic cells
+    B, C, w, h = muY_basic.shape
+    muY_basic = muY_basic.view(B*C, w, h)
+    basic_expander = torch.ones((1, C), **torch_options_int)
+    left_batch = (left_batch.reshape(B, 1) * basic_expander).ravel()
+    bottom_batch = (bottom_batch.reshape(B,1) * basic_expander).ravel()
+    # Get mask with real basic cells
+    part_ravel = partition.ravel()
+    # print(part_ravel.dtype)
+    mask = part_ravel >= 0
+    basic_indices = part_ravel[mask].long() # Transform so that it can be index
+    muY_basic = muY_basic[mask]
+    left_batch = left_batch[mask]
+    bottom_batch = bottom_batch[mask]
+
+    info = {**info, **info_solver}
+    return resultAlpha, resultBeta, basic_indices, muY_basic, left_batch, bottom_batch, info
+
+def basic_to_composite_minibatch_CUDA_2D(muY_basic, left, bottom, partition):
+    # muY_basic is of shape (B, s1, ..., sd)
+    # TODO: change signature left,bottom to allow for higher dimensional
+    B, C = partition.shape
+    sum_indices = partition.clone()
+    # There may be -1's in the first position, which `combine_cells` doesn't like
+    # To avoid that we set them to whatever the max is in that slice and
+    # set the weight to zero
+    max_slices = sum_indices.amax(-1).view(-1, 1)
+    max_slices = max_slices.repeat((1, C))
+    mask = sum_indices < 0
+    sum_indices[mask] = max_slices[mask]
+
+    weights = torch.ones(sum_indices.shape, device = muY_basic.device, 
+                         dtype = muY_basic.dtype)
+    weights[mask] = 0.0
+    return combine_cells(muY_basic, left, bottom, sum_indices, weights)
