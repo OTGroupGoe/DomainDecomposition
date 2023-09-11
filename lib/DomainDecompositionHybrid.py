@@ -311,10 +311,10 @@ def implement_flow_CUDA(Nu_basic, left, bottom, edges, flow, basic_mass, basic_s
         weights[:,0] -= torch.sum(weights[:,1:], dim = 1)
 
 
-        print("sum_indices")
-        print(sum_indices)
-        print("weights")
-        print(weights)
+        # print("sum_indices")
+        # print(sum_indices)
+        # print("weights")
+        # print(weights)
 
 
         # TODO: for now renormalize Nu_basic. If it doesn't work well, renormalize weights
