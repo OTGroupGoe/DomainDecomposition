@@ -949,7 +949,6 @@ def CUDA_balance(muXCell, muY_basic):
 #         global_composite_minus.view(-1, 1)
 #     return relative_basic_minus, basic_minus, basic_extent, global_composite_minus, max_composite_extent
 
-
 def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
     B = muY_basic.shape[0]
     geom_shape = muY_basic.shape[1:]
@@ -993,6 +992,7 @@ def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
         global_composite_minus.view(-1, 1)
     return (relative_basic_minus, basic_minus, basic_extent,
             global_composite_minus, max_composite_extent)
+
 
 
 def combine_cells(muY_basic, global_left, global_bottom, sum_indices, weights=1):
@@ -1530,30 +1530,51 @@ def MiniBatchIterate(
     muXJ, posXJ, alphaJ,
     muY_basic, left, bottom, shapeY, partition,
     SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
-    SinkhornInnerIter=100, batchsize=np.inf
+    SinkhornInnerIter=100, batchsize=np.inf, clustering = False, N_clusters = "smart"
 ):
     # partition is now of shape (B, C)
     # partition[i,:] are the basic cells in composite cell i
     # there can be -1's to encode for smaller cells
+    # Clustering if one wants to apply a cluster algorithm for the minibatching
 
     torch_options = dict(device = muY_basic.device, dtype = muY_basic.dtype)
     # Compute minibatches
-    N_problems = partition.shape[0]
-    if batchsize > N_problems:
-        batchsize = N_problems
+    # N_problems = partition.shape[0]
+    # if batchsize > N_problems:
+    #     batchsize = N_problems
 
-    N_batches = int(np.ceil(N_problems / batchsize))
-    # Get uniform minibatches of size maybe smaller than batchsize
-    actual_batchsize = int(np.ceil(N_problems / N_batches))
-    minibatches = [
-        torch.arange(i*actual_batchsize,
-                     min((i+1)*actual_batchsize, N_problems), 
-                     device=muY_basic.device, dtype=torch.int64)
-        for i in range(N_batches)
-    ]
+    # N_batches = int(np.ceil(N_problems / batchsize))
+    # # Get uniform minibatches of size maybe smaller than batchsize
+    # actual_batchsize = int(np.ceil(N_problems / N_batches))
+    # if clustering: 
+    #     minibatches = get_minibatches_clustering(muY_basic, left, bottom, 
+    #                                              partition, N_batches)
+    t0 = time.perf_counter()
+    N_problems = partition.shape[0]
+    if clustering: 
+        if N_clusters == "smart":
+            N_clusters = int(min(10, max(1, np.sqrt(N_problems)/16)))
+            print(f"N_clusters = {N_clusters}")
+        else:
+            N_clusters = min(N_clusters, N_problems)
+        minibatches = get_minibatches_clustering(muY_basic, left, bottom, 
+                                                partition, N_clusters)
+    else:
+        N_batches = int(np.ceil(N_problems / batchsize))
+        # Get uniform minibatches of size maybe smaller than batchsize
+        actual_batchsize = int(np.ceil(N_problems / N_batches))
+        minibatches = [
+            torch.arange(i*actual_batchsize,
+                        min((i+1)*actual_batchsize, N_problems), 
+                        device=muY_basic.device, dtype=torch.int64)
+            for i in range(N_batches)
+        ]
+    time_clustering = time.perf_counter() - t0
+    N_batches = len(minibatches) # If some cluster was empty it was removed
     batch_muY_basic_list = []
     info = None
     dims_batch = np.zeros((N_batches, 2), dtype = np.int64)
+    # print(N_batches, minibatches)
     for (i, batch) in enumerate(minibatches):
         posXJ_batch = tuple(xi[batch] for xi in posXJ)
         alpha_batch, beta_batch, basic_idx_batch, muY_basic_batch, left_batch,\
@@ -1581,9 +1602,12 @@ def MiniBatchIterate(
 
         # Save basic cell marginals for the end
         batch_muY_basic_list.append((basic_idx_batch, muY_basic_batch))
-
+    info["time_clustering"] = time_clustering
     # Combine all batches together
     # Get bounding box
+
+    # Joint problems
+    t0 = time.perf_counter()
     w, h = np.max(dims_batch, axis = 0)
     # print("dims_batch\n", dims_batch)
     ## Continue here
@@ -1593,7 +1617,7 @@ def MiniBatchIterate(
         w_i, h_i = box
         # print(basic_idx)
         muY_basic[basic_idx, :w_i, :h_i] = muY_batch
-
+    info["time_join_clusters"] =  time.perf_counter() - t0
     return alphaJ, muY_basic, left, bottom, info
 
 
@@ -1622,7 +1646,6 @@ def BatchDomDecIterationMinibatch_CUDA(
     # torch.set_printoptions(profile="full")
     muYCell, left_batch, bottom_batch = basic_to_composite_minibatch_CUDA_2D(
         muY_basic, left, bottom, partition)
-    info["time_bounding_box"] = time.perf_counter() - t0
     # torch.set_printoptions(profile="default")  # reset
 
     # Get subMuY
@@ -1635,6 +1658,7 @@ def BatchDomDecIterationMinibatch_CUDA(
     posYCell = get_grid_cartesian_coordinates(
         left_batch, bottom_batch, w, h, dx
     )
+    info["time_bounding_box"] = time.perf_counter() - t0
 
     # 4. Solve problem
 
@@ -1678,7 +1702,9 @@ def BatchDomDecIterationMinibatch_CUDA(
     muY_basic[muY_basic <= 1e-15] = 0.0
     info["time_truncation"] = time.perf_counter() - t0
 
+
     # Extend left_batch and right to basic cells
+    t0 = time.perf_counter()
     B, C, w, h = muY_basic.shape
     muY_basic = muY_basic.view(B*C, w, h)
     basic_expander = torch.ones((1, C), **torch_options_int)
@@ -1692,6 +1718,8 @@ def BatchDomDecIterationMinibatch_CUDA(
     muY_basic = muY_basic[mask]
     left_batch = left_batch[mask]
     bottom_batch = bottom_batch[mask]
+    info["time_bounding_box"] += time.perf_counter() - t0
+
 
     info = {**info, **info_solver}
     return resultAlpha, resultBeta, basic_indices, muY_basic, left_batch, bottom_batch, info
@@ -1713,3 +1741,109 @@ def basic_to_composite_minibatch_CUDA_2D(muY_basic, left, bottom, partition):
                          dtype = muY_basic.dtype)
     weights[mask] = 0.0
     return combine_cells(muY_basic, left, bottom, sum_indices, weights)
+
+
+
+########################################
+# Clustering problems based on bbox
+#########################################
+
+# Modified from a keops tutorial
+def KMeans(x, K=10, Niter=20, verbose=True):
+    """Implements Lloyd's algorithm for the Euclidean metric."""
+
+    N, D = x.shape  # Number of samples, dimension of the ambient space
+
+    c = x[:K, :].clone()  # Simplistic initialization for the centroids
+
+    x_i = x.view(N, 1, D)  # (N, 1, D) samples
+    c_j = c.view(1, K, D)  # (1, K, D) centroids
+
+    # K-means loop:
+    # - x  is the (N, D) point cloud,
+    # - cl is the (N,) vector of class labels
+    # - c  is the (K, D) cloud of cluster centroids
+    for i in range(Niter):
+        # E step: assign points to the closest cluster -------------------------
+        D_ij = ((x_i - c_j) ** 2).sum(-1)  # (N, K) squared distances
+        cl = D_ij.argmin(dim=1).view(-1)  # Points -> Nearest cluster
+
+        # M step: update the centroids to the normalized cluster average: ------
+        # Compute the sum of points per cluster:
+        c.zero_()
+        c.scatter_add_(0, cl[:, None].repeat(1, D), x)
+
+        # Divide by the number of points per cluster:
+        Ncl = torch.bincount(cl, minlength=K).type_as(c).view(K, 1)
+        c /= Ncl  # in-place division to compute the average
+
+
+    return cl, c
+
+
+
+# TODO: make all of this more modular. This basically copies get_axis_bounds
+# and takes just what is needed
+def get_axis_composite_extent(muY_basic, mask, global_minus, axis, sum_indices):
+    B = muY_basic.shape[0]
+    geom_shape = muY_basic.shape[1:]
+    n = geom_shape[axis]
+    # Put in the position of every point with mass its index along axis
+    index_axis = torch.arange(n, device=muY_basic.device, dtype=torch.int32)
+    new_shape_index = [
+        n if i == 1 + axis else 1 for i in range(len(muY_basic.shape))
+    ]
+    index_axis = index_axis.view(new_shape_index)
+    mask_index = mask*index_axis
+    # Get positive extreme
+    basic_plus = mask_index.view(B, -1).amax(-1)
+    # Turn zeros to upper bound so that we can get the minimum
+    mask_index[~mask] = n
+    basic_minus = mask_index.view(B, -1).amin(-1)
+    # Add global offsets
+    global_basic_minus = global_minus + basic_minus
+    global_basic_plus = global_minus + basic_plus
+
+    # Remove -1's in sum_indices
+    sum_indices_clean = sum_indices.clone().long()
+    idx, idy = torch.where(sum_indices_clean < 0)
+    # Each composite cell comes at least from one basic
+    sum_indices_clean[idx, idy] = sum_indices_clean[idx, 0]
+
+    # Reduce to composite cell
+    global_composite_minus = global_basic_minus[sum_indices_clean].amin(-1)
+    global_composite_plus = global_basic_plus[sum_indices_clean].amax(-1)
+    composite_extent = global_composite_plus - global_composite_minus + 1
+    # print("axis =", axis, "composite_extent =\n", composite_extent)
+
+    return composite_extent
+
+def get_minibatches_clustering(muY_basic, global_left, global_bottom, 
+                               partition, N_problems):
+
+
+    # Remove -1's
+    B, C = partition.shape
+    sum_indices = partition.clone()
+    mask_ind = sum_indices < 0
+    max_slices = sum_indices.amax(-1).view(-1, 1)
+    max_slices = max_slices.repeat((1, C))
+    sum_indices[mask_ind] = max_slices[mask_ind]
+
+    # Get extents
+    mask = muY_basic > 0.0
+
+    x = get_axis_composite_extent(muY_basic, mask, global_left, 0, sum_indices)
+    
+    y = get_axis_composite_extent(muY_basic, mask, global_bottom, 
+                                                 1, sum_indices)
+
+    z = torch.concat((x.view(-1, 1), y.view(-1, 1)), dim = 1).double()
+    z += torch.rand((B, 2), dtype = torch.float64, device = x.device)
+    # Cluster
+    cl, _ = KMeans(z, N_problems)
+    minibatches = [torch.where(cl==i)[0] for i in range(N_problems)]
+    # There exist the possibility that some cluster is empty. Then remove
+    minibatches = [batch for batch in minibatches if len(batch) > 0]
+
+    return minibatches

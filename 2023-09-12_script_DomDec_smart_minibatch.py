@@ -6,6 +6,7 @@ import lib.DomainDecomposition as DomDec
 import lib.DomainDecompositionGPU as DomDecGPU
 import lib.DomainDecompositionHybrid as DomDecHybrid
 import lib.MultiScaleOT as MultiScaleOT
+from LogSinkhornGPU import LogSinkhornCudaImage
 
 import os
 import psutil
@@ -91,6 +92,7 @@ N = shapeX[0]
 cellsize = params["domdec_cellsize"]
 # params["batchsize"] = np.inf
 params["clustering"] = True
+params["number_clusters"] = "smart"
 
 
 # Get multiscale torch hierarchy
@@ -324,7 +326,8 @@ while nLayer <= nLayerFinest:
 
     N_clusters = params["number_clusters"]
     # params["batchsize"] = max((N//(2*cellsize) + 1)**2 // N_clusters, 2000)
-    params["batchsize"] = (N//(2*cellsize) + 1)**2 // N_clusters
+    # params["batchsize"] = (N//(2*cellsize) + 1)**2 // N_clusters
+    params["batchsize"] = np.inf
 
     if params["aux_printLayerConsistency"]:
         # TODO: rephrase muY_basic
@@ -515,17 +518,38 @@ if params["aux_dump_finest"]:
 #####################################
 # evaluate primal and dual score
 if params["aux_evaluate_scores"]:
-    # TODO: change this to gpu
+    # Get smooth alpha
+    alpha_global = DomDecGPU.get_alpha_field_even_gpu(
+        alphaA, alphaB, shapeXL, shapeXL_pad,
+        cellsize, basic_shape, muXL_np)
 
-    solutionInfos, muYAList = DomDec.getPrimalInfos(muYL_np, posYL, posXAList, muXAList, alphaAList, betaADataList, betaAIndexList, eps,
-                                                    getMuYList=True)
+    # Get beta with sinkhorn iter
+    solver_global = LogSinkhornCudaImage(
+        muXL.view(1, *shapeX), muYL.view(1, *shapeY), dx, eps,
+        alpha_init = alpha_global.view(1, *shapeX))
+    solver_global.iterate(1)
+    beta_global = solver_global.beta.squeeze()
 
-    alphaFieldEven, alphaGraph = DomDec.getAlphaFieldEven(alphaAList, alphaBList,
-                                                          partitionDataA[0], partitionDataB[0], shapeXL, metaCellShape, cellsize,
-                                                          muX=muXL_np, requestAlphaGraph=True)
+    # Transfer to numpy
+    alphaFieldEven = alpha_global.cpu().numpy().ravel()
+    betaFieldEven = beta_global.cpu().numpy().ravel()
 
-    betaFieldEven = DomDec.glueBetaList(
-        betaADataList, betaAIndexList, muXL_np.shape[0], offsets=alphaGraph.ravel(), muYList=muYAList, muY=muYL_np)
+        
+
+
+
+
+    # ###################################################
+
+    # solutionInfos, muYAList = DomDec.getPrimalInfos(muYL_np, posYL, posXAList, muXAList, alphaAList, betaADataList, betaAIndexList, eps,
+    #                                                 getMuYList=True)
+
+    # alphaFieldEven, alphaGraph = DomDec.getAlphaFieldEven(alphaAList, alphaBList,
+    #                                                       partitionDataA[0], partitionDataB[0], shapeXL, metaCellShape, cellsize,
+    #                                                       muX=muXL_np, requestAlphaGraph=True)
+
+    # betaFieldEven = DomDec.glueBetaList(
+    #     betaADataList, betaAIndexList, muXL_np.shape[0], offsets=alphaGraph.ravel(), muYList=muYAList, muY=muYL_np)
 
     MultiScaleSetupX.setupDuals()
     MultiScaleSetupX.setupRadii()

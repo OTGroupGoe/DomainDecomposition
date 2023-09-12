@@ -6,7 +6,8 @@ from scipy.sparse import csr_matrix
 from . import Common
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
 from .CPPSinkhorn import CPPSinkhorn as CPPSinkhorn
-#from . import MultiScaleOT
+# from .MultiScaleOT import MultiScaleOT as MultiScaleOT
+from . import MultiScaleOT
 #import lib.LogSinkhorn.LogSinkhorn as LogSinkhorn
 #import lib.CPPSinkhorn.CPPSinkhorn as CPPSinkhorn
 ##############################################################################################################################
