@@ -862,7 +862,7 @@ def get_alpha_field_even_gpu(alphaA, alphaB, shapeXL, shapeXL_pad,
     # Remove padding
     # TODO: generalize to 3D
     s1, s2 = shapeXL
-    alphaB_field = alphaB_field[cellsize:s1+cellsize, cellsize:s2+cellsize]
+    alphaB_field = alphaB_field[cellsize:-cellsize, cellsize:-cellsize]
     alphaDiff = (alphaA_field-alphaB_field).cpu().numpy().ravel()
     alphaGraph = DomDec.getAlphaGraph(
         alphaDiff, basic_shape, cellsize, muX
@@ -1560,6 +1560,8 @@ def MiniBatchIterate(
         minibatches = get_minibatches_clustering(muY_basic, left, bottom, 
                                                 partition, N_clusters)
     else:
+        if batchsize == np.inf: 
+            batchsize = N_problems
         N_batches = int(np.ceil(N_problems / batchsize))
         # Get uniform minibatches of size maybe smaller than batchsize
         actual_batchsize = int(np.ceil(N_problems / N_batches))
@@ -1569,6 +1571,7 @@ def MiniBatchIterate(
                         device=muY_basic.device, dtype=torch.int64)
             for i in range(N_batches)
         ]
+        # print([len(batch) for batch in minibatches])
     time_clustering = time.perf_counter() - t0
     N_batches = len(minibatches) # If some cluster was empty it was removed
     batch_muY_basic_list = []
@@ -1577,29 +1580,33 @@ def MiniBatchIterate(
     # print(N_batches, minibatches)
     for (i, batch) in enumerate(minibatches):
         posXJ_batch = tuple(xi[batch] for xi in posXJ)
-        alpha_batch, beta_batch, basic_idx_batch, muY_basic_batch, left_batch,\
+        alpha_batch, basic_idx_batch, muY_basic_batch, left_batch,\
             bottom_batch, info_batch = BatchDomDecIterationMinibatch_CUDA(
             SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
             muXJ[batch], posXJ_batch, alphaJ[batch],
             muY_basic, left, bottom, partition[batch],
             SinkhornMaxIter, SinkhornInnerIter
         )
-        # Slide marginals to corner to get the smallest bbox later
-        muY_basic_batch, left_batch, bottom_batch = \
-            slide_marginals_to_corner(muY_basic_batch, left_batch, bottom_batch)
-
-        # Write results  that are easy to overwrite
-        alphaJ[batch] = alpha_batch
-        left[basic_idx_batch] = left_batch
-        bottom[basic_idx_batch] = bottom_batch
-        dims_batch[i, :] = muY_basic_batch.shape[1:]
         if info is None:
             info = info_batch
         else:
             for key in info_batch.keys():
                 if key[:4] == "time":
                     info[key] += info_batch[key]
+        # Slide marginals to corner to get the smallest bbox later
+        t0 = time.perf_counter()
+        muY_basic_batch, left_batch, bottom_batch = \
+            slide_marginals_to_corner(muY_basic_batch, left_batch, bottom_batch)
+        info["time_bounding_box"] += time.perf_counter() - t0
 
+        # Write results that are easy to overwrite
+        # But do not modify previous tensors
+        alphaJ, left, bottom = alphaJ.clone(), left.clone(), bottom.clone()
+        alphaJ[batch] = alpha_batch
+        left[basic_idx_batch] = left_batch
+        bottom[basic_idx_batch] = bottom_batch
+        dims_batch[i, :] = muY_basic_batch.shape[1:]
+        
         # Save basic cell marginals for the end
         batch_muY_basic_list.append((basic_idx_batch, muY_basic_batch))
     info["time_clustering"] = time_clustering
@@ -1707,6 +1714,8 @@ def BatchDomDecIterationMinibatch_CUDA(
     t0 = time.perf_counter()
     B, C, w, h = muY_basic.shape
     muY_basic = muY_basic.view(B*C, w, h)
+    # Copy left and bottom for beta
+    left_beta, bottom_beta = left_batch.clone(), bottom_batch.clone()
     basic_expander = torch.ones((1, C), **torch_options_int)
     left_batch = (left_batch.reshape(B, 1) * basic_expander).ravel()
     bottom_batch = (bottom_batch.reshape(B,1) * basic_expander).ravel()
@@ -1722,7 +1731,7 @@ def BatchDomDecIterationMinibatch_CUDA(
 
 
     info = {**info, **info_solver}
-    return resultAlpha, resultBeta, basic_indices, muY_basic, left_batch, bottom_batch, info
+    return resultAlpha, basic_indices, muY_basic, left_batch, bottom_batch, info
 
 def basic_to_composite_minibatch_CUDA_2D(muY_basic, left, bottom, partition):
     # muY_basic is of shape (B, s1, ..., sd)

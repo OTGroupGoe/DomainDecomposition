@@ -75,8 +75,9 @@ for k in sorted(params.keys()):
 # Manual parameters
 params["aux_dump_after_each_layer"] = False
 params["aux_dump_finest"] = False  # TODO: change
-params["aux_evaluate_scores"] = False  # TODO: allow evaluation
+params["aux_evaluate_scores"] = True  # TODO: allow evaluation
 params["sinkhorn_max_iter"] = 2000
+params["sinkhorn_inner_iter"] = 10
 
 params["aux_dump_after_each_eps"] = False
 params["aux_dump_after_each_iter"] = False
@@ -90,7 +91,7 @@ muY, posY, shapeY = Common.importMeasure(params["setup_fn2"])
 
 N = shapeX[0]
 cellsize = params["domdec_cellsize"]
-# params["batchsize"] = np.inf
+params["batchsize"] = np.inf
 params["clustering"] = True
 params["number_clusters"] = "smart"
 
@@ -126,6 +127,7 @@ if params["eps_schedule"] == "default":
                                                       "eps_nIterationsLayerInit"], nIterationsGlobalInit=params["eps_nIterationsGlobalInit"],
                                                   nIterationsFinal=params["eps_nIterationsFinal"])
 
+    # Add a couple more iterations
     # for l in params["eps_list"]:
     #     for i, (eps, nsteps) in enumerate(l):
     #         l[i] = [eps*(params["domdec_cellsize"]/4)**2, nsteps]
@@ -234,11 +236,11 @@ while nLayer <= nLayerFinest:
     # The following threw a warning
     # leftA = (min_index_cell_A // (b2+2))*cellsize
     # leftB = (min_index_cell_B // (b2+2))*cellsize
-    leftA = torch.div(min_index_cell_A, b2+2, rounding_mode="trunc")*cellsize
-    leftB = torch.div(min_index_cell_B, b2+2, rounding_mode="trunc")*cellsize
+    leftA = (torch.div(min_index_cell_A, b2+2, rounding_mode="trunc") -1)*cellsize
+    leftB = (torch.div(min_index_cell_B, b2+2, rounding_mode="trunc") -1)*cellsize
 
-    bottomA = (min_index_cell_A % (b2+2))*cellsize
-    bottomB = (min_index_cell_B % (b2+2))*cellsize
+    bottomA = (min_index_cell_A % (b2+2) - 1)*cellsize  # Remove left padding
+    bottomB = (min_index_cell_B % (b2+2) - 1)*cellsize
 
     x1A, x2A = DomDecGPU.get_grid_cartesian_coordinates(
         leftA, bottomA, 2*cellsize, 2*cellsize, dx
@@ -378,6 +380,7 @@ while nLayer <= nLayerFinest:
                 clustering = params["clustering"],
                 N_clusters = params["number_clusters"]
             )
+            # solverA = info["solver"]
 
             time2 = time.perf_counter()
             evaluationData["time_iterate"] += time2-time1
@@ -518,72 +521,67 @@ if params["aux_dump_finest"]:
 #####################################
 # evaluate primal and dual score
 if params["aux_evaluate_scores"]:
+
+    solution_infos = dict()
+
     # Get smooth alpha
     alpha_global = DomDecGPU.get_alpha_field_even_gpu(
         alphaA, alphaB, shapeXL, shapeXL_pad,
         cellsize, basic_shape, muXL_np)
 
-    # Get beta with sinkhorn iter
+    # Get beta with sinkhorn iteration
     solver_global = LogSinkhornCudaImage(
         muXL.view(1, *shapeX), muYL.view(1, *shapeY), dx, eps,
         alpha_init = alpha_global.view(1, *shapeX))
-    solver_global.iterate(1)
-    beta_global = solver_global.beta.squeeze()
+    # solver_global.iterate(0)
+    # beta_global = solver_global.beta.squeeze()
 
-    # Transfer to numpy
-    alphaFieldEven = alpha_global.cpu().numpy().ravel()
-    betaFieldEven = beta_global.cpu().numpy().ravel()
+    # Dual Score
+    dual_score = torch.sum(solver_global.alpha * solver_global.mu) + \
+        torch.sum(solver_global.beta * solver_global.nu)
+    dual_score = dual_score.item()
+    solution_infos["scoreDual"] = dual_score
 
-        
+    # Get primal score
+    # Get updated nu comp by doing a dummy domdec iteration
+    _, _, _, _, info = DomDecGPU.MiniBatchIterate(
+        muYL, posY, dx, eps,
+        muXB, posXB, alphaB, muY_basic, left, bottom, shapeY, partB,
+        SinkhornError=params["sinkhorn_error"],
+        SinkhornErrorRel=params["sinkhorn_error_rel"],
+        SinkhornMaxIter=0,
+        SinkhornInnerIter=0,
+        batchsize = np.inf, # we need all the problems,
+        clustering = False,
+        N_clusters = 1
+    )
+    solverB = info["solver"]
+
+    primal_score = torch.sum(solverB.alpha * solverB.mu) + torch.sum(solverB.beta * solverB.nu)
+    primal_score = primal_score.item()
+    solution_infos["scorePrimal"] = primal_score
+    solution_infos["scoreGap"] = primal_score - dual_score
+    solution_infos["scoreGapRel"] = (primal_score - dual_score)/primal_score
+    # muY error
+    current_muY = DomDecGPU.get_current_Y_marginal(muY_basic, left, bottom, shapeYL) 
+    muY_error = torch.abs(current_muY.ravel() - muYL.ravel()).sum().item()
+    solution_infos["errorMargY"] = muY_error
+
+    # Get muX error
+    new_alpha = solverB.get_new_alpha()
+    current_mu = solverB.mu * torch.exp((solverB.alpha - new_alpha)/eps)
+    muX_error = torch.sum(torch.abs(solverB.mu - current_mu)).item()
+
+    solution_infos["errorMargX"] = muX_error
+    print("===================")
+    print("solution infos")
+    print(json.dumps(solution_infos, indent = 4))
+    print("===================")
+    #
 
 
-
-
-    # ###################################################
-
-    # solutionInfos, muYAList = DomDec.getPrimalInfos(muYL_np, posYL, posXAList, muXAList, alphaAList, betaADataList, betaAIndexList, eps,
-    #                                                 getMuYList=True)
-
-    # alphaFieldEven, alphaGraph = DomDec.getAlphaFieldEven(alphaAList, alphaBList,
-    #                                                       partitionDataA[0], partitionDataB[0], shapeXL, metaCellShape, cellsize,
-    #                                                       muX=muXL_np, requestAlphaGraph=True)
-
-    # betaFieldEven = DomDec.glueBetaList(
-    #     betaADataList, betaAIndexList, muXL_np.shape[0], offsets=alphaGraph.ravel(), muYList=muYAList, muY=muYL_np)
-
-    MultiScaleSetupX.setupDuals()
-    MultiScaleSetupX.setupRadii()
-    MultiScaleSetupY.setupDuals()
-    MultiScaleSetupY.setupRadii()
-
-    # hierarchical dual score:
-
-    # fix alpha and beta by doing some iterations (expensive)
-#        datDual,alphaDual,betaDual=DomDec.getHierarchicalKernel(MultiScaleSetupX,MultiScaleSetupY,\
-#                params["setup_dim"],params["hierarchy_depth"],eps,alphaFieldEven,betaFieldEven,nIter=10)
-#        print("entries in dual kernel: ",datDual[0].shape[0])
-#        solutionInfos["scoreDual"]=np.sum(muX*alphaDual)+np.sum(muYL_np*betaDual)-eps*np.sum(datDual[0])
-
-    # do one beta-reduce-only-iteration manually
-    datDual = DomDec.getHierarchicalKernel(MultiScaleSetupX, MultiScaleSetupY,
-                                           params["setup_dim"], params["hierarchy_depth"], eps, alphaFieldEven, betaFieldEven, nIter=0)
-    print("entries in dual kernel: ", datDual[0].shape[0])
-
-    piDual = scipy.sparse.csr_matrix(datDual, shape=(
-        alphaFieldEven.shape[0], betaFieldEven.shape[0]))
-    muYEff = np.array(piDual.sum(axis=0)).ravel()
-    vRel = np.minimum(1, muYL_np/muYEff)
-
-    solutionInfos["scoreDual"] = np.sum(
-        muX*alphaFieldEven)+np.sum(muYL_np*(betaFieldEven+eps*np.log(vRel)))-eps*np.sum(muYEff*vRel)
-
-    solutionInfos["scoreGap"] = solutionInfos["scorePrimal"] - \
-        solutionInfos["scoreDual"]
-
-    print(solutionInfos)
-
-    for k in solutionInfos.keys():
-        evaluationData["solution_"+k] = solutionInfos[k]
+#     for k in solutionInfos.keys():
+#         evaluationData["solution_"+k] = solutionInfos[k]
 
 
 #####################################
