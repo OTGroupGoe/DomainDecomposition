@@ -6,6 +6,7 @@ import lib.DomainDecomposition as DomDec
 import lib.DomainDecompositionGPU as DomDecGPU
 import lib.DomainDecompositionHybrid as DomDecHybrid
 import lib.MultiScaleOT as MultiScaleOT
+# from LogSinkhornGPU import LogSinkhornCudaImage
 from LogSinkhornGPU import LogSinkhornCudaImage
 
 import os
@@ -78,6 +79,8 @@ params["aux_dump_finest"] = False  # TODO: change
 params["aux_evaluate_scores"] = True  # TODO: allow evaluation
 params["sinkhorn_max_iter"] = 2000
 params["sinkhorn_inner_iter"] = 10
+params["sinkhorn_error"] = 1e-4
+
 
 params["aux_dump_after_each_eps"] = False
 params["aux_dump_after_each_iter"] = False
@@ -151,6 +154,7 @@ evaluationData["time_join_clusters"] = 0.
 evaluationData["timeList_global"] = []
 
 evaluationData["sparsity_muYAtomicEntries"] = []
+evaluationData["shape_muYAtomicEntries"] = []
 
 globalTime1 = time.perf_counter()
 
@@ -223,7 +227,8 @@ while nLayer <= nLayerFinest:
 
     # Get X grid coordinates
     X_width = shapeXL_pad[1]
-    dx = posXL[1, 1] - posXL[0, 1]
+    # dx = posXL[1, 1] - posXL[0, 1]
+    dx = 2.0**(nLayerFinest - nLayer)
 
     # TODO: do this directly
     basic_index_pad = torch.arange(
@@ -390,16 +395,20 @@ while nLayer <= nLayerFinest:
             evaluationData["time_bounding_box"] += info["time_bounding_box"]
             evaluationData["time_clustering"] += info["time_clustering"]
             evaluationData["time_join_clusters"] += info["time_join_clusters"]
+            Niter_per_batch = [solverB.Niter for solverB in info["solver"]]
             print(
-                f"Niter = {info['solver'].Niter}, bounding box = {info['bounding_box']}")
+                f"Niter = {Niter_per_batch}, bounding box = {info['bounding_box']}")
 
             ################################
             # count total entries in muYAtomicList:
             bbox_size = tuple(muY_basic.shape[1:])
-            nrEntries = int(np.prod(muY_basic.shape))
-            print(f"bbox: {bbox_size}")
+            nrEntries = int(torch.sum(muY_basic > 0).item())
+            shape_muY_basic = int(np.prod(muY_basic.shape))
+            print(f"basic bbox: {bbox_size}")
             evaluationData["sparsity_muYAtomicEntries"].append(
                 [nLayer, nEps, nIterations, 0, nrEntries])
+            evaluationData["shape_muYAtomicEntries"].append(
+                [nLayer, nEps, nIterations, 0, shape_muY_basic])
             
             ################################
             # dump after each iteration
@@ -443,9 +452,23 @@ while nLayer <= nLayerFinest:
             evaluationData["time_measureBalancing"] += info["time_balance"]
             evaluationData["time_measureTruncation"] += info["time_truncation"]
             evaluationData["time_bounding_box"] += info["time_bounding_box"]
+            Niter_per_batch = [solverB.Niter for solverB in info["solver"]]
             print(
-                f"Niter = {info['solver'].Niter}, bounding box = {info['bounding_box']}")
+                f"Niter = {Niter_per_batch}, bounding box = {info['bounding_box']}")
+
             ################################
+
+            ################################
+            # count total entries in muYAtomicList:
+            bbox_size = tuple(muY_basic.shape[1:])
+            nrEntries = int(torch.sum(muY_basic > 0).item())
+            shape_muY_basic = int(np.prod(muY_basic.shape))
+            print(f"basic bbox: {bbox_size}")
+            evaluationData["sparsity_muYAtomicEntries"].append(
+                [nLayer, nEps, nIterations, 1, nrEntries])
+            evaluationData["shape_muYAtomicEntries"].append(
+                [nLayer, nEps, nIterations, 1, shape_muY_basic])
+
 
             #################################
             # dump after each iteration
@@ -551,15 +574,20 @@ if params["aux_evaluate_scores"]:
         SinkhornErrorRel=params["sinkhorn_error_rel"],
         SinkhornMaxIter=0,
         SinkhornInnerIter=0,
-        batchsize = np.inf, # we need all the problems,
-        clustering = False,
-        N_clusters = 1
+        batchsize=params["batchsize"],
+        clustering = params["clustering"],
+        N_clusters = params["number_clusters"]
     )
-    solverB = info["solver"]
-
-    primal_score = torch.sum(solverB.alpha * solverB.mu) + torch.sum(solverB.beta * solverB.nu)
-    primal_score = primal_score.item()
+    # Get primal_score and muX_error
+    primal_score = 0.0
+    muX_error = 0.0
+    for solverB in info["solver"]:
+        primal_score += (torch.sum(solverB.alpha * solverB.mu) + torch.sum(solverB.beta * solverB.nu)).item()
+        new_alpha = solverB.get_new_alpha()
+        current_mu = solverB.mu * torch.exp((solverB.alpha - new_alpha)/eps)
+        muX_error += torch.sum(torch.abs(solverB.mu - current_mu)).item()
     solution_infos["scorePrimal"] = primal_score
+    solution_infos["errorMargX"] = muX_error
     solution_infos["scoreGap"] = primal_score - dual_score
     solution_infos["scoreGapRel"] = (primal_score - dual_score)/primal_score
     # muY error
@@ -567,12 +595,6 @@ if params["aux_evaluate_scores"]:
     muY_error = torch.abs(current_muY.ravel() - muYL.ravel()).sum().item()
     solution_infos["errorMargY"] = muY_error
 
-    # Get muX error
-    new_alpha = solverB.get_new_alpha()
-    current_mu = solverB.mu * torch.exp((solverB.alpha - new_alpha)/eps)
-    muX_error = torch.sum(torch.abs(solverB.mu - current_mu)).item()
-
-    solution_infos["errorMargX"] = muX_error
     print("===================")
     print("solution infos")
     print(json.dumps(solution_infos, indent = 4))
@@ -580,8 +602,8 @@ if params["aux_evaluate_scores"]:
     #
 
 
-#     for k in solutionInfos.keys():
-#         evaluationData["solution_"+k] = solutionInfos[k]
+    for k in solution_infos.keys():
+        evaluationData["solution_"+k] = solution_infos[k]
 
 
 #####################################

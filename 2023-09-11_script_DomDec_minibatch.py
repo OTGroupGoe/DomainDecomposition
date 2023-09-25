@@ -108,6 +108,7 @@ muY_layers = DomDecGPU.get_multiscale_layers(muY_final, shapeY)
 posXD = posX.astype(np.float64)
 posYD = posY.astype(np.float64)
 
+# TODO: remove this if not needed
 # generate multi-scale representation of muX
 MultiScaleSetupX = MultiScaleOT.TMultiScaleSetup(
     posXD, muX, params["hierarchy_depth"], childMode=MultiScaleOT.childModeGrid, setup=True, setupDuals=False, setupRadii=False)
@@ -364,7 +365,7 @@ while nLayer <= nLayerFinest:
             ################################
             # iteration A
             time1 = time.perf_counter()
-            alphaA, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
+            alphaA, _, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
                 muYL, posY, dx, eps,
                 muXA, posXA, alphaA, muY_basic, left, bottom, shapeY, partA,
                 SinkhornError=params["sinkhorn_error"],
@@ -420,7 +421,7 @@ while nLayer <= nLayerFinest:
             ################################
             # iteration B
             time1 = time.perf_counter()
-            alphaB, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
+            alphaB, _, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
                 muYL, posY, dx, eps,
                 muXB, posXB, alphaB, muY_basic, left, bottom, shapeY, partB,
                 SinkhornError=params["sinkhorn_error"],
