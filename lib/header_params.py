@@ -111,8 +111,9 @@ paramsListCFGFile={\
         "comparison_sinkhorn_truncation_thresh" : ptype.real,\
         "comparison_verbose" : ptype.boolean,\
         "comparison_final_layer_manual" : ptype.boolean,\
-        "comparison_sinkhorn_error" : ptype.real\
-        
+        "comparison_sinkhorn_error" : ptype.real,\
+        # GPU
+        "number_clusters" : ptype.integer\
         
         }
 
