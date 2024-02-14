@@ -38,7 +38,7 @@ def processDensity_Grid(x,totalMass=None,constOffset=None,keepZero=True,zeroThre
 	processDensity(img,totalMass=totalMass,constOffset=constOffset)
 
 	# get grid pos information
-	posList=getPoslistNCube(shape,dtype=np.int)
+	posList=getPoslistNCube(shape,dtype=np.int64)
 	posList=posList.reshape((nPoints,dim))
 
 	# if desired, throw away points with zero mass
@@ -119,7 +119,7 @@ def GlueKernels(pi12,pi23,X1in12):
 def getSparseVector(vec,thresh,subIndices=None,subShape=None):
     ind=np.where(vec>=thresh)[0]
     data=vec[ind]
-    ptr=np.array([0,len(ind)],dtype=np.int)
+    ptr=np.array([0,len(ind)],dtype=np.int64)
     if subIndices is not None:
         ind=subIndices[ind]
         shp=subShape
