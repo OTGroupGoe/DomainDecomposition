@@ -5,6 +5,7 @@ from . import DomainDecompositionGPU as DomDecGPU
 import scipy.sparse as sp
 import time
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
+import LogSinkhornGPU
 
 
 # Build basic cell problem
@@ -29,7 +30,7 @@ def get_gamma_2D(muX_basic, basic_mass, eps_gamma, cellsize, eps_scaling = False
     xs_gamma = (x_gamma, x_gamma)
     C = (xs_gamma, xs_gamma)
 
-    solver_gamma = DomDecGPU.LogSinkhornCudaImageOffset(mu_gamma, nu_gamma, C, eps_gamma)
+    solver_gamma = LogSinkhornGPU.LogSinkhornCudaImageOffset(mu_gamma, nu_gamma, C, eps_gamma)
     if eps_scaling:
         # TODO: finish eps scaling
         assert False, "Not implemented yet"
