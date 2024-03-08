@@ -234,7 +234,9 @@ def batch_balance(muXCell, muY_basic):
     return muY_basic.reshape(*muY_basic_shape)
 
 
-def get_grid_cartesian_coordinates(left, bottom, w, h, dx):
+# 
+
+def get_grid_cartesian_coordinates(left, bottom, w, h, dxs):
     """
     Generate the cartesian coordinates of the boxes with bottom-left corner 
     given by (left, bottom) (vectors), with width w, height h and spacing dx.
@@ -242,16 +244,17 @@ def get_grid_cartesian_coordinates(left, bottom, w, h, dx):
     j0 : torch.tensor
     w : int
     h : int
-    dx : float
+    dys : tensor of dy along each dimension
     """
     # TODO: generalize to 3D
     B = len(left)
+    dx1, dy2 = dxs
     device = left.device
-    x1_template = torch.arange(0, w*dx, dx, device=device)
-    x2_template = torch.arange(0, h*dx, dx, device=device)
-    x1 = left.view(-1, 1)*dx + x1_template.view(1, -1)
-    x2 = bottom.view(-1, 1)*dx + x2_template.view(1, -1)
-    return x1, x2
+    x1_template = torch.arange(0, w*dx1, dx1, device=device)
+    y2_template = torch.arange(0, h*dy2, dy2, device=device)
+    x1 = left.view(-1, 1)*dx1 + x1_template.view(1, -1)
+    y2 = bottom.view(-1, 1)*dy2 + y2_template.view(1, -1)
+    return x1, y2
 
 # def batch_shaped_cartesian_prod(xs):
 #     """
@@ -544,6 +547,23 @@ def convert_to_batch_2D(A):
     A_res = A_res.permute(0, 2, 1, 4, 3, 5, 6).reshape(new_shape)
     return A_res
 
+def get_dx(x, B):
+    """
+    Get spacing between points in `x`, checking that grid is 
+    2-dimensional (batch + physical dimension), sharing same 
+    batch dimension `B` and equispaced.
+    """
+    assert len(x.shape) == 2, "x must have a batch and physical dim"
+    assert x.shape[0] == B, "x must have `B` as batch dim"
+    if x.shape[1] == 1:
+        return 1.0
+    else:
+        # Check that gridpoints are equispaced
+        diff = torch.diff(x, dim=1)
+        dx = diff[0,0]
+        assert torch.allclose(diff, dx, rtol=1e-4), \
+            "grid points must be equispaced"
+        return dx.item()
 
 def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     """
@@ -555,13 +575,13 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     """
     Ms = LogSinkhornGPU.geom_dims(muref)
     Ns = LogSinkhornGPU.geom_dims(nuref)
+    B = LogSinkhornGPU.batch_dim(muref)
 
     # Deduce cellsize
     s = Ms[0]//2
     dim = len(xs)
     assert dim == 2, "Not implemented for dimension rather than 2"
     n_basic = 2**dim  # number of basic cells per composite cell, depends on dim
-    dx = (xs[0][0, 1] - xs[0][0, 0]).cpu()  # TODO: this may fail if x grids not equispaced
 
     # Perform permutations and reshapes in X data to turn them
     # into B*n_cells problems of size (s,s)
@@ -587,11 +607,15 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     ys_b = (y1_b, y2_b)
 
     # Perform a reduction to get a second dual for each basic cell
+    dxs = torch.tensor([get_dx(xi, xi.shape[0]) for xi in xs_b]).cpu()
+    dys = torch.tensor([get_dx(yj, yj.shape[0]) for yj in ys_b]).cpu()
+
     offsetX, offsetY, offset_const = LogSinkhornGPU.compute_offsets_sinkhorn_grid(
         xs_b, ys_b, eps)
     h = alpha_b / eps + logmu_b + offsetX
+
     beta_hat = - eps * (
-        LogSinkhornGPU.softmin_cuda_image(h, Ns, new_Ms, eps, dx)
+        LogSinkhornGPU.softmin_cuda_image(h, Ns, new_Ms, eps, dys, dxs)
         + offsetY + offset_const
     )
 
@@ -608,7 +632,7 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
 
 
 def BatchIterate(
-    muY, posY, dx, eps,
+    muY, posY, dxs_dys, eps,
     # TODO: remove this unnecesary input
     partitionDataCompCells, partitionDataCompCellIndices,
     muYAtomicDataList, muYAtomicIndicesList,
@@ -636,7 +660,7 @@ def BatchIterate(
         # Solve batch
         resultAlpha, resultBeta, resultMuYAtomicDataList, \
             resultMuYCellIndicesList, info = BatchDomDecIteration_CUDA(
-                SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
+                SinkhornError, SinkhornErrorRel, muY, posY, dxs_dys, eps, shapeY,
                 muXBatch, posXBatch, alphaBatch,
                 [(muYAtomicDataList[j] for j in J)
                  for J in partitionDataCompCellsBatch],
@@ -669,12 +693,13 @@ def BatchIterate(
 
 
 def BatchDomDecIteration_CUDA(
-        SinkhornError, SinkhornErrorRel, muY, posYCell, dx, eps, shapeY,
+        SinkhornError, SinkhornErrorRel, muY, posYCell, dxs_dys, eps, shapeY,
         # partitionDataCompCellIndices,
         muXCell, posXCell, alphaCell, muYAtomicListData, muYAtomicListIndices,
         SinkhornMaxIter, SinkhornInnerIter, BatchSize, balance=True):
 
     # 1: compute composite cell marginals
+    dxs, dys = dxs_dys
     info = dict()
     muYCellData = []
     muYCellIndices = []
@@ -705,7 +730,7 @@ def BatchDomDecIteration_CUDA(
 
     # 3: get physical coordinates of bounding box for each batched problem
     posYCell = get_grid_cartesian_coordinates(
-        left_cuda, bottom_cuda, width, height, dx
+        left_cuda, bottom_cuda, width, height, dys
     )
 
     # 4. Solve problem
@@ -797,51 +822,51 @@ def BatchSolveOnCell_CUDA(
     return alpha, beta, muY_basic, info
 
 
-def BatchSolveOnCell_CUDA_float(
-    muXCell, muYCell, posX, posY, eps, alphaInit, muYref,
-    SinkhornError=1E-4, SinkhornErrorRel=False, YThresh=1E-14, verbose=True,
-    SinkhornMaxIter=10000, SinkhornInnerIter=10
-):
-    """
-    Solve, converting first to float, and then undoing the conversion
-    """
+# def BatchSolveOnCell_CUDA_float(
+#     muXCell, muYCell, posX, posY, eps, alphaInit, muYref,
+#     SinkhornError=1E-4, SinkhornErrorRel=False, YThresh=1E-14, verbose=True,
+#     SinkhornMaxIter=10000, SinkhornInnerIter=10
+# ):
+#     """
+#     Solve, converting first to float, and then undoing the conversion
+#     """
 
-    # Retrieve BatchSize
-    B = muXCell.shape[0]
-    dim = len(posX)
-    assert dim == 2, "Not implemented for dimension != 2"
+#     # Retrieve BatchSize
+#     B = muXCell.shape[0]
+#     dim = len(posX)
+#     assert dim == 2, "Not implemented for dimension != 2"
 
-    # Retrieve cellsize
-    s = muXCell.shape[-1] // 2
+#     # Retrieve cellsize
+#     s = muXCell.shape[-1] // 2
 
-    # Define cost for solver
-    C = (tuple(xi.float() for xi in posX), tuple(yi.float() for yi in posY))
-    # Solve problem
-    solver = LogSinkhornGPU.LogSinkhornCudaImageOffset(
-        muXCell.float(), muYCell.float(), C, eps, alpha_init=alphaInit.float(),
-        nuref=muYref.float(), max_error=SinkhornError,
-        max_error_rel=SinkhornErrorRel, max_iter=SinkhornMaxIter,
-        inner_iter=SinkhornInnerIter
-    )
+#     # Define cost for solver
+#     C = (tuple(xi.float() for xi in posX), tuple(yi.float() for yi in posY))
+#     # Solve problem
+#     solver = LogSinkhornGPU.LogSinkhornCudaImageOffset(
+#         muXCell.float(), muYCell.float(), C, eps, alpha_init=alphaInit.float(),
+#         nuref=muYref.float(), max_error=SinkhornError,
+#         max_error_rel=SinkhornErrorRel, max_iter=SinkhornMaxIter,
+#         inner_iter=SinkhornInnerIter
+#     )
 
-    msg = solver.iterate_until_max_error()
+#     msg = solver.iterate_until_max_error()
 
-    # print(f"solving with {solver.alpha.dtype}")
-    alpha = solver.alpha
-    beta = solver.beta
-    # Compute cell marginals directly
-    pi_basic = get_cell_marginals(
-        solver.muref, solver.nuref, alpha, beta, C[0], C[1], eps
-    )
-    # print(f"pi is {pi_basic.dtype}")
+#     # print(f"solving with {solver.alpha.dtype}")
+#     alpha = solver.alpha
+#     beta = solver.beta
+#     # Compute cell marginals directly
+#     pi_basic = get_cell_marginals(
+#         solver.muref, solver.nuref, alpha, beta, C[0], C[1], eps
+#     )
+#     # print(f"pi is {pi_basic.dtype}")
 
-    # Wrap solver and possibly runtime info into info dictionary
-    info = {
-        "solver": solver,
-        "msg": msg
-    }
+#     # Wrap solver and possibly runtime info into info dictionary
+#     info = {
+#         "solver": solver,
+#         "msg": msg
+#     }
 
-    return alpha.double(), beta.double(), pi_basic.double(), info
+#     return alpha.double(), beta.double(), pi_basic.double(), info
 
 #######
 # Duals
@@ -1133,7 +1158,7 @@ def unpack_cell_marginals_2D_box(muY_basic, left, bottom, shapeY):
 
 
 def BatchIterateBox(
-    muY, posY, dx, eps,
+    muY, posY, dxs_dys, eps,
     muXJ, posXJ, alphaJ,
     muY_basic, left, bottom, shapeY,
     basic_shape, partition="A",
@@ -1145,7 +1170,7 @@ def BatchIterateBox(
     # TODO: minibatches
     alphaJ, betaJ, muY_basic, left, bottom, info = \
         BatchDomDecIterationBox_CUDA(
-            SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
+            SinkhornError, SinkhornErrorRel, muY, posY, dxs_dys, eps, shapeY,
             muXJ, posXJ, alphaJ,
             muY_basic, left, bottom, basic_shape, partition,
             SinkhornMaxIter, SinkhornInnerIter
@@ -1240,7 +1265,7 @@ def BatchIterateBox(
 
 
 def BatchDomDecIterationBox_CUDA(
-        SinkhornError, SinkhornErrorRel, muY, posYCell, dx, eps, shapeY,
+        SinkhornError, SinkhornErrorRel, muY, posYCell, dxs_dys, eps, shapeY,
         # partitionDataCompCellIndices,
         muXCell, posXCell, alphaCell,
         muY_basic, left, bottom, basic_shape, partition,
@@ -1249,7 +1274,7 @@ def BatchDomDecIterationBox_CUDA(
     info = dict()
     # 1: compute composite cell marginals
     # Get basic shape size
-
+    dxs, dys = dxs, dys
     t0 = time.perf_counter()
     _, w0, h0 = muY_basic.shape
     torch_options = dict(device=muY_basic.device, dtype=muY_basic.dtype)
@@ -1276,7 +1301,7 @@ def BatchDomDecIterationBox_CUDA(
 
     # 3: get physical coordinates of bounding box for each batched problem
     posYCell = get_grid_cartesian_coordinates(
-        left, bottom, w, h, dx
+        left, bottom, w, h, dys
     )
 
     # 4. Solve problem
@@ -1528,7 +1553,7 @@ def get_multiscale_layers(muX, shapeX):
 ############################################
 
 def MiniBatchIterate(
-    muY, posY, dx, eps,
+    muY, posY, dxs_dys, eps,
     muXJ, posXJ, alphaJ,
     muY_basic, left, bottom, shapeY, partition,
     SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
@@ -1540,6 +1565,9 @@ def MiniBatchIterate(
     # Clustering if one wants to apply a cluster algorithm for the minibatching
 
     torch_options = dict(device=muY_basic.device, dtype=muY_basic.dtype)
+
+    
+
     # Compute minibatches
     # N_problems = partition.shape[0]
     # if batchsize > N_problems:
@@ -1585,7 +1613,7 @@ def MiniBatchIterate(
         posXJ_batch = tuple(xi[batch] for xi in posXJ)
         alpha_batch, basic_idx_batch, muY_basic_batch, left_batch,\
             bottom_batch, info_batch = BatchDomDecIterationMinibatch_CUDA(
-                SinkhornError, SinkhornErrorRel, muY, posY, dx, eps, shapeY,
+                SinkhornError, SinkhornErrorRel, muY, posY, dxs_dys, eps, shapeY,
                 muXJ[batch], posXJ_batch, alphaJ[batch],
                 muY_basic, left, bottom, partition[batch],
                 SinkhornMaxIter, SinkhornInnerIter
@@ -1635,7 +1663,7 @@ def MiniBatchIterate(
 
 
 def BatchDomDecIterationMinibatch_CUDA(
-        SinkhornError, SinkhornErrorRel, muY, posYCell, dx, eps, shapeY,
+        SinkhornError, SinkhornErrorRel, muY, posYCell, dxs_dys, eps, shapeY,
         # partitionDataCompCellIndices,
         muXCell, posXCell, alphaCell,
         muY_basic, left, bottom, partition,
@@ -1644,6 +1672,7 @@ def BatchDomDecIterationMinibatch_CUDA(
     info = dict()
     # 1: compute composite cell marginals
     # Get basic shape size
+    dxs, dys = dxs_dys
 
     t0 = time.perf_counter()
     _, w0, h0 = muY_basic.shape
@@ -1669,7 +1698,7 @@ def BatchDomDecIterationMinibatch_CUDA(
 
     # 3: get physical coordinates of bounding box for each batched problem
     posYCell = get_grid_cartesian_coordinates(
-        left_batch, bottom_batch, w, h, dx
+        left_batch, bottom_batch, w, h, dys
     )
     info["time_bounding_box"] = time.perf_counter() - t0
 
