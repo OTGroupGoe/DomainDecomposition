@@ -2,7 +2,6 @@ import numpy as np
 import torch
 # from . import MultiScaleOT
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
-# import LogSinkhornGPU
 import LogSinkhornGPU
 
 from . import DomainDecomposition as DomDec
@@ -562,7 +561,7 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     dim = len(xs)
     assert dim == 2, "Not implemented for dimension rather than 2"
     n_basic = 2**dim  # number of basic cells per composite cell, depends on dim
-    dx = (xs[0][0, 1] - xs[0][0, 0]).item()  # TODO: check consistency
+    dx = (xs[0][0, 1] - xs[0][0, 0]).cpu()  # TODO: this may fail if x grids not equispaced
 
     # Perform permutations and reshapes in X data to turn them
     # into B*n_cells problems of size (s,s)
@@ -588,7 +587,7 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     ys_b = (y1_b, y2_b)
 
     # Perform a reduction to get a second dual for each basic cell
-    offsetX, offsetY, offset_const = compute_offsets_sinkhorn_grid(
+    offsetX, offsetY, offset_const = LogSinkhornGPU.compute_offsets_sinkhorn_grid(
         xs_b, ys_b, eps)
     h = alpha_b / eps + logmu_b + offsetX
     beta_hat = - eps * (
@@ -818,7 +817,7 @@ def BatchSolveOnCell_CUDA_float(
     # Define cost for solver
     C = (tuple(xi.float() for xi in posX), tuple(yi.float() for yi in posY))
     # Solve problem
-    solver = LogSinkhornCudaImageOffset(
+    solver = LogSinkhornGPU.LogSinkhornCudaImageOffset(
         muXCell.float(), muYCell.float(), C, eps, alpha_init=alphaInit.float(),
         nuref=muYref.float(), max_error=SinkhornError,
         max_error_rel=SinkhornErrorRel, max_iter=SinkhornMaxIter,
@@ -879,7 +878,7 @@ def get_alpha_field_even_gpu(alphaA, alphaB, shapeXL, shapeXL_pad,
     alphaGraphGPU = torch.tensor(
         alphaGraph, device=alphaA.device, dtype=alphaA.dtype
     )
-    alphaAEven = alphaA - alphaGraphGPU.view(-1, *np.ones(dim, dtype=np.int))
+    alphaAEven = alphaA - alphaGraphGPU.view(-1, *np.ones(dim, dtype=np.int32))
     # alphaFieldEven = alphaA_field.cpu().numpy()
     # for a, c in zip(alphaGraph.ravel(), cellsA):
     #     print(c)
@@ -908,12 +907,9 @@ def CUDA_balance(muXCell, muY_basic):
     atomic_mass_nu = muY_basic.sum(-1)
     mass_delta = atomic_mass_nu - atomic_mass
     # print(f"balancing with {muY_basic.dtype}")
-    if muY_basic.dtype == torch.float64:
-        LogSinkhornGPU.BalanceCUDA_64(muY_basic, mass_delta, 1e-12)
-    elif muY_basic.dtype == torch.float32:
-        LogSinkhornGPU.BalanceCUDA_32(muY_basic, mass_delta, 1e-12)
-    else:
-        raise NotImplementedError()
+    threshold = torch.tensor(1e-12)
+    # Call LogSinkhornGPU backend function 
+    LogSinkhornGPU.backend.BalanceCUDA(muY_basic, mass_delta, threshold)
     return muY_basic.view(*muY_basic_shape)
 
 
@@ -1023,7 +1019,7 @@ def combine_cells(muY_basic, global_left, global_bottom, sum_indices, weights=1)
         global_composite_bottom, composite_height = \
         get_axis_bounds(muY_basic, mask, global_bottom, 1, sum_indices)
 
-    Nu_comp = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    Nu_comp = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         muY_basic, composite_width, composite_height,
         weights, sum_indices,
         relative_basic_left, basic_left, basic_width,
@@ -1397,7 +1393,7 @@ def crop_measure_to_box(rho_composite, global_left, global_bottom, rho):
     sum_indices_rho = torch.zeros((B, 1), **torch_options_int)
     weights = torch.ones((B, 1), **torch_options)
 
-    reference_rho = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    reference_rho = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         rho.view(1, *rho.shape), w, h,
         weights, sum_indices_rho,
         relative_left, global_left, comp_width,
@@ -1452,7 +1448,7 @@ def refine_marginals_CUDA(muY_basic, global_left, global_bottom,
 
     weights = torch.ones((B*C, 1), **torch_options)
 
-    refinement_weights_Y_box = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    refinement_weights_Y_box = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         refinement_weights_Y, w, h,
         weights, sum_indices_refine,
         relative_basic_left_refine, basic_left_refine, basic_width_refine,
@@ -1500,7 +1496,7 @@ def get_current_Y_marginal(muY_basic, global_left, global_bottom, shapeY):
     sum_indices_global = torch.arange(B, **torch_options_int).view(1, -1)
     weights = torch.ones((1, B), **torch_options)
 
-    muY_sum = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    muY_sum = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         muY_basic, *shapeY,
         weights, sum_indices_global,
         global_left.view(1, -1), basic_left.view(1, -
