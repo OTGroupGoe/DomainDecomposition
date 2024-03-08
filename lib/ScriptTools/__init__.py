@@ -39,7 +39,7 @@ def parseParameter(v,t):
     elif t==ParameterType.stringList:
         return v.split(",")
     elif t==ParameterType.boolean:
-        return (np.fromstring(v,dtype=np.int,count=1,sep=" ")[0]==1)
+        return (np.fromstring(v,dtype=np.bool8,count=1,sep=" ")[0]==1)
 
 def readParameters(filename,paramsType):
     """File <filename> is opened and read as tab separated CSV. The dictionary paramsType specifies which parameters are read: each entry

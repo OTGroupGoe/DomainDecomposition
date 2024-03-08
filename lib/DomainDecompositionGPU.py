@@ -2,7 +2,6 @@ import numpy as np
 import torch
 # from . import MultiScaleOT
 from .LogSinkhorn import LogSinkhorn as LogSinkhorn
-# import LogSinkhornGPU
 import LogSinkhornGPU
 
 from . import DomainDecomposition as DomDec
@@ -254,54 +253,54 @@ def get_grid_cartesian_coordinates(left, bottom, w, h, dx):
     x2 = bottom.view(-1, 1)*dx + x2_template.view(1, -1)
     return x1, x2
 
+# def batch_shaped_cartesian_prod(xs):
+#     """
+#     For xs = (x1, ..., xd) a tuple of tensors of shape (B, M1), ... (B, Md), 
+#     form the tensor X of shape (B, M1, ..., Md, d) such that
+#     `X[i] = torch.cartesian_prod(xs[i],...,xs[i]).view(M1, ..., Md, d)`
+#     """
+#     B = xs[0].shape[0]
+#     for x in xs:
+#         assert B == x.shape[0], "All xs must have the same batch dimension"
+#         assert len(x.shape) == 2, "xi must have shape (B, Mi)"
+#     Ms = tuple(x.shape[1] for x in xs)
+#     dim = len(xs)
+#     device = xs[0].device
 
-def batch_shaped_cartesian_prod(xs):
-    """
-    For xs = (x1, ..., xd) a tuple of tensors of shape (B, M1), ... (B, Md), 
-    form the tensor X of shape (B, M1, ..., Md, d) such that
-    `X[i] = torch.cartesian_prod(xs[i],...,xs[i]).view(M1, ..., Md, d)`
-    """
-    B = xs[0].shape[0]
-    for x in xs:
-        assert B == x.shape[0], "All xs must have the same batch dimension"
-        assert len(x.shape) == 2, "xi must have shape (B, Mi)"
-    Ms = tuple(x.shape[1] for x in xs)
-    dim = len(xs)
-    device = xs[0].device
+#     shapeX = (B, ) + Ms + (dim,)
+#     X = torch.empty(shapeX, device=device)
+#     for i in range(dim):
+#         shapexi = (B,) + (1,)*i + (Ms[i],) + (1,)*(dim-i-1)
+#         X[..., i] = xs[i].view(shapexi)
+#     return X
 
-    shapeX = (B, ) + Ms + (dim,)
-    X = torch.empty(shapeX, device=device)
-    for i in range(dim):
-        shapexi = (B,) + (1,)*i + (Ms[i],) + (1,)*(dim-i-1)
-        X[..., i] = xs[i].view(shapexi)
-    return X
+# def compute_offsets_sinkhorn_grid(xs, ys, eps):
+#     """
+#     Compute offsets
+#     xs and ys are d-tuples of tensors with shape (B, Mi) where B is the batch 
+#     dimension and Mi the size of the grid in that coordinate
+#     # TODO: ref
+#     """
+#     # Get cartesian prod
+#     X = batch_shaped_cartesian_prod(xs)
+#     Y = batch_shaped_cartesian_prod(ys)
+#     shapeX = X.shape
+#     B, Ms, dim = shapeX[0], shapeX[1:-1], shapeX[-1]
+#     Ns = Y.shape[1:-1]
+
+#     # Get "bottom left" corner coordinates: select slice (:, 0, ..., 0, :)
+#     X0 = X[(slice(None),) + (0,)*dim + (slice(None),)] \
+#         .view((B,) + (1,)*dim + (dim,))  # NOTE alternatively: use unpack op.
+#     Y0 = Y[(slice(None),) + (0,)*dim + (slice(None),)] \
+#         .view((B,) + (1,)*dim + (dim,))  # NOTE alternatively: use unpack op.
+
+#     # Use the formulas in [TODO: ref] to compute the offset
+#     offsetX = torch.sum(2*(X-X0)*(Y0-X0), dim=-1)/eps
+#     offsetY = torch.sum(2*(Y-Y0)*(X0-Y0), dim=-1)/eps
+#     offset_constant = -torch.sum((X0-Y0)**2, dim=-1)/eps
+#     return offsetX, offsetY, offset_constant
 
 
-def compute_offsets_sinkhorn_grid(xs, ys, eps):
-    """
-    Compute offsets
-    xs and ys are d-tuples of tensors with shape (B, Mi) where B is the batch 
-    dimension and Mi the size of the grid in that coordinate
-    # TODO: ref
-    """
-    # Get cartesian prod
-    X = batch_shaped_cartesian_prod(xs)
-    Y = batch_shaped_cartesian_prod(ys)
-    shapeX = X.shape
-    B, Ms, dim = shapeX[0], shapeX[1:-1], shapeX[-1]
-    Ns = Y.shape[1:-1]
-
-    # Get "bottom left" corner coordinates: select slice (:, 0, ..., 0, :)
-    X0 = X[(slice(None),) + (0,)*dim + (slice(None),)] \
-        .view((B,) + (1,)*dim + (dim,))  # NOTE alternatively: use unpack op.
-    Y0 = Y[(slice(None),) + (0,)*dim + (slice(None),)] \
-        .view((B,) + (1,)*dim + (dim,))  # NOTE alternatively: use unpack op.
-
-    # Use the formulas in [TODO: ref] to compute the offset
-    offsetX = torch.sum(2*(X-X0)*(Y0-X0), dim=-1)/eps
-    offsetY = torch.sum(2*(Y-Y0)*(X0-Y0), dim=-1)/eps
-    offset_constant = -torch.sum((X0-Y0)**2, dim=-1)/eps
-    return offsetX, offsetY, offset_constant
 
 
 def get_refined_marginals_gpu(muYL, muYL_old, parentsYL,
@@ -361,154 +360,158 @@ def get_refined_marginals_gpu(muYL, muYL_old, parentsYL,
 ##############################################################
 
 
-class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
-    """
-    Online Sinkhorn solver for standard OT on images with separable cost, 
-    custom CUDA implementation. 
-    Each Sinkhorn iteration has complexity N^(3/2), instead of the usual N^2. 
+# class LogSinkhornCudaImageOffset(LogSinkhornGPU.AbstractSinkhorn):
+#     """
+#     Online Sinkhorn solver for standard OT on images with separable cost, 
+#     custom CUDA implementation. 
+#     Each Sinkhorn iteration has complexity N^(3/2), instead of the usual N^2. 
 
-    Attributes
-    ----------
-    mu : torch.Tensor 
-        of size (B, M1, M2)
-        First marginals
-    nu : torch.Tensor 
-        of size (B, N1, N2)
-        Second marginals 
-    C : tuple 
-        of the form ((x1, x2), (y1, y2))
-        Grid coordinates
-    eps : float
-        Regularization strength
-    muref : torch.Tensor 
-        with same dimensions as mu (except axis 0, which can have len = 1)
-        First reference measure for the Gibbs energy, 
-        i.e. K = muref \otimes nuref exp(-C/eps)
-    nuref : torch.Tensor 
-        with same dimensions as nu (except axis 0, which can have len = 1)
-        Second reference measure for the Gibbs energy, 
-        i.e. K = muref \otimes nuref exp(-C/eps)
-    alpha_init : torch.Tensor 
-        with same dimensions as mu, or None
-        Initialization for the first Sinkhorn potential
-    """
+#     Attributes
+#     ----------
+#     mu : torch.Tensor 
+#         of size (B, M1, M2)
+#         First marginals
+#     nu : torch.Tensor 
+#         of size (B, N1, N2)
+#         Second marginals 
+#     C : tuple 
+#         of the form ((x1, x2), (y1, y2))
+#         Grid coordinates
+#     eps : float
+#         Regularization strength
+#     muref : torch.Tensor 
+#         with same dimensions as mu (except axis 0, which can have len = 1)
+#         First reference measure for the Gibbs energy, 
+#         i.e. K = muref \otimes nuref exp(-C/eps)
+#     nuref : torch.Tensor 
+#         with same dimensions as nu (except axis 0, which can have len = 1)
+#         Second reference measure for the Gibbs energy, 
+#         i.e. K = muref \otimes nuref exp(-C/eps)
+#     alpha_init : torch.Tensor 
+#         with same dimensions as mu, or None
+#         Initialization for the first Sinkhorn potential
+#     """
 
-    def __init__(self, mu, nu, C, eps, **kwargs):
-        (xs, ys) = C
-        zs = xs + ys  # Have all coordinates in one tuple
-        x1 = zs[0]
-        B = LogSinkhornGPU.batch_dim(mu)
-        # Check whether xs have a batch dimension
-        if len(x1.shape) == 1:
-            for z in zs:
-                assert len(z) == 1, \
-                    "dimensions of grid coordinates must be consistent"
-            C = tuple(tuple(xi.view(1, -1) for xi in X) for X in C)
-        else:
-            for z in zs:
-                assert len(z.shape) == 2, \
-                    "coordinates can just have one spatial dimension"
-                assert z.shape[0] == B, \
-                    "batch dimension of all coordinates must coincide"
+#     def __init__(self, mu, nu, C, eps, **kwargs):
+#         (xs, ys) = C
+#         zs = xs + ys  # Have all coordinates in one tuple
+#         x1 = zs[0]
+#         B = LogSinkhornGPU.batch_dim(mu)
+#         # Check whether xs have a batch dimension
+#         if len(x1.shape) == 1:
+#             for z in zs:
+#                 assert len(z) == 1, \
+#                     "dimensions of grid coordinates must be consistent"
+#             C = tuple(tuple(xi.view(1, -1) for xi in X) for X in C)
+#         else:
+#             for z in zs:
+#                 assert len(z.shape) == 2, \
+#                     "coordinates can just have one spatial dimension"
+#                 assert z.shape[0] == B, \
+#                     "batch dimension of all coordinates must coincide"
 
-        # Now all coordinates have a batch dimension of either B or 1.
-        # Check that all coordinates have same grid spacing
-        dx = x1[0, 1]-x1[0, 0]
-        for z in zs:
-            if z.shape[-1] > 1:  # otherwise diff yields shape 0
-                assert torch.max(torch.abs(torch.diff(z, dim=-1)-dx)) < 1e-6, \
-                    "Grid is not equispaced"
+#         # Now all coordinates have a batch dimension of either B or 1.
+#         # Check that all coordinates have same grid spacing
+#         if x1.shape[1] == 1:
+#             print("WARNING: x seems to have length 1. Setting dx = 1")
+#             dx = 1
+#         else:
+#             dx = x1[0, 1]-x1[0, 0]
+#             for z in zs:
+#                 if z.shape[-1] > 1:  # otherwise diff yields shape 0
+#                     assert torch.max(torch.abs(torch.diff(z, dim=-1)-dx)) < 1e-6, \
+#                         "Grid is not equispaced"
 
-        # Check geometric dimensions
-        Ms = LogSinkhornGPU.geom_dims(mu)
-        Ns = LogSinkhornGPU.geom_dims(nu)
-        assert len(Ms) == len(Ns) == 2, "Shapes incompatible with images"
+#         # Check geometric dimensions
+#         Ms = LogSinkhornGPU.geom_dims(mu)
+#         Ns = LogSinkhornGPU.geom_dims(nu)
+#         assert len(Ms) == len(Ns) == 2, "Shapes incompatible with images"
 
-        # Compute the offsets
-        self.offsetX, self.offsetY, self.offset_const = \
-            compute_offsets_sinkhorn_grid(xs, ys, eps)
+#         # Compute the offsets
+#         self.offsetX, self.offsetY, self.offset_const = \
+#             compute_offsets_sinkhorn_grid(xs, ys, eps)
 
-        # Save xs and ys in case they are needed later
-        self.xs = xs
-        self.ys = ys
+#         # Save xs and ys in case they are needed later
+#         self.xs = xs
+#         self.ys = ys
 
-        C = (dx, Ms, Ns)
+#         C = (dx, Ms, Ns)
 
-        super().__init__(mu, nu, C, eps, **kwargs)
+#         super().__init__(mu, nu, C, eps, **kwargs)
 
-    def get_new_alpha(self):
-        dx, Ms, Ns = self.C
-        h = self.beta / self.eps + self.lognuref + self.offsetY
-        return - self.eps * (
-            LogSinkhornGPU.softmin_cuda_image(h, Ms, Ns, self.eps, dx)
-            + self.offsetX + self.offset_const + self.logmuref - self.logmu
-        )
+#     def get_new_alpha(self):
+#         dx, Ms, Ns = self.C
+#         h = self.beta / self.eps + self.lognuref + self.offsetY
+#         return - self.eps * (
+#             LogSinkhornGPU.softmin_cuda_image(h, Ms, Ns, self.eps, dx)
+#             + self.offsetX + self.offset_const + self.logmuref - self.logmu
+#         )
 
-    def get_new_beta(self):
-        dx, Ms, Ns = self.C
-        h = self.alpha / self.eps + self.logmuref + self.offsetX
-        return - self.eps * (
-            LogSinkhornGPU.softmin_cuda_image(h, Ns, Ms, self.eps, dx)
-            + self.offsetY + self.offset_const + self.lognuref - self.lognu
-        )
+#     def get_new_beta(self):
+#         dx, Ms, Ns = self.C
+#         h = self.alpha / self.eps + self.logmuref + self.offsetX
+#         return - self.eps * (
+#             LogSinkhornGPU.softmin_cuda_image(h, Ns, Ms, self.eps, dx)
+#             + self.offsetY + self.offset_const + self.lognuref - self.lognu
+#         )
 
-    def get_dense_cost(self, ind=None):
-        """
-        Get dense cost matrix of given problems. If no argument is given, all 
-        costs are computed. Can be memory intensive, so it is recommended to do 
-        small batches at a time.
-        `ind` must be slice or iterable, not int.
-        """
+#     def get_dense_cost(self, ind=None):
+#         """
+#         Get dense cost matrix of given problems. If no argument is given, all 
+#         costs are computed. Can be memory intensive, so it is recommended to do 
+#         small batches at a time.
+#         `ind` must be slice or iterable, not int.
+#         """
 
-        if ind == None:
-            ind = slice(None,)
+#         if ind == None:
+#             ind = slice(None,)
 
-        xs = tuple(x[ind] for x in self.xs)
-        ys = tuple(y[ind] for y in self.ys)
-        X = batch_shaped_cartesian_prod(xs)
-        Y = batch_shaped_cartesian_prod(ys)
-        B = X.shape[0]
-        dim = X.shape[-1]
-        C = ((X.view(B, -1, 1, dim) - Y.view(B, 1, -1, dim))**2).sum(dim=-1)
-        return C, X, Y
+#         xs = tuple(x[ind] for x in self.xs)
+#         ys = tuple(y[ind] for y in self.ys)
+#         X = batch_shaped_cartesian_prod(xs)
+#         Y = batch_shaped_cartesian_prod(ys)
+#         B = X.shape[0]
+#         dim = X.shape[-1]
+#         C = ((X.view(B, -1, 1, dim) - Y.view(B, 1, -1, dim))**2).sum(dim=-1)
+#         return C, X, Y
 
-    def get_dense_plan(self, ind=None, C=None):
-        """
-        Get dense plans of given problems. If no argument is given, all plans 
-        are computed. Can be memory intensive, so it is recommended to do small 
-        batches at a time.
-        `ind` must be slice or iterable, not int.
-        """
-        if ind == None:
-            ind = slice(None,)
+#     def get_dense_plan(self, ind=None, C=None):
+#         """
+#         Get dense plans of given problems. If no argument is given, all plans 
+#         are computed. Can be memory intensive, so it is recommended to do small 
+#         batches at a time.
+#         `ind` must be slice or iterable, not int.
+#         """
+#         if ind == None:
+#             ind = slice(None,)
 
-        if C == None:
-            C, _, _ = self.get_dense_cost(ind)
+#         if C == None:
+#             C, _, _ = self.get_dense_cost(ind)
 
-        B = C.shape[0]
-        alpha, beta = self.alpha[ind], self.beta[ind]
-        muref, nuref = self.muref[ind], self.nuref[ind]
+#         B = C.shape[0]
+#         alpha, beta = self.alpha[ind], self.beta[ind]
+#         muref, nuref = self.muref[ind], self.nuref[ind]
 
-        pi = torch.exp(
-            (alpha.view(B, -1, 1) + beta.view(B, 1, -1) - C) / self.eps
-        ) * muref.view(B, -1, 1) * nuref.view(B, 1, -1)
-        return pi
+#         pi = torch.exp(
+#             (alpha.view(B, -1, 1) + beta.view(B, 1, -1) - C) / self.eps
+#         ) * muref.view(B, -1, 1) * nuref.view(B, 1, -1)
+#         return pi
 
-    def change_eps(self, new_eps):
-        """
-        Change the regularization strength `self.eps`.
-        In this solver this also involves renormalizing the offsets.
-        """
-        self.Niter = 0
-        self.current_error = self.max_error + 1.
-        scale = self.eps / new_eps
-        self.offsetX = self.offsetX * scale
-        self.offsetY = self.offsetY * scale
-        self.offset_const = self.offset_const * scale
-        self.eps = new_eps
+#     def change_eps(self, new_eps):
+#         """
+#         Change the regularization strength `self.eps`.
+#         In this solver this also involves renormalizing the offsets.
+#         """
+#         self.Niter = 0
+#         self.current_error = self.max_error + 1.
+#         scale = self.eps / new_eps
+#         self.offsetX = self.offsetX * scale
+#         self.offsetY = self.offsetY * scale
+#         self.offset_const = self.offset_const * scale
+#         self.eps = new_eps
 
-    def get_dx(self):
-        return self.C[0]
+#     def get_dx(self):
+#         return self.C[0]
 
 
 def convert_to_basic_2D(A, basic_grid_shape, cellsize):
@@ -558,7 +561,7 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     dim = len(xs)
     assert dim == 2, "Not implemented for dimension rather than 2"
     n_basic = 2**dim  # number of basic cells per composite cell, depends on dim
-    dx = (xs[0][0, 1] - xs[0][0, 0]).item()  # TODO: check consistency
+    dx = (xs[0][0, 1] - xs[0][0, 0]).cpu()  # TODO: this may fail if x grids not equispaced
 
     # Perform permutations and reshapes in X data to turn them
     # into B*n_cells problems of size (s,s)
@@ -584,7 +587,7 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     ys_b = (y1_b, y2_b)
 
     # Perform a reduction to get a second dual for each basic cell
-    offsetX, offsetY, offset_const = compute_offsets_sinkhorn_grid(
+    offsetX, offsetY, offset_const = LogSinkhornGPU.compute_offsets_sinkhorn_grid(
         xs_b, ys_b, eps)
     h = alpha_b / eps + logmu_b + offsetX
     beta_hat = - eps * (
@@ -770,7 +773,7 @@ def BatchSolveOnCell_CUDA(
     # Define cost for solver
     C = (posX, posY)
     # Solve problem
-    solver = LogSinkhornCudaImageOffset(
+    solver = LogSinkhornGPU.LogSinkhornCudaImageOffset(
         muXCell, muYCell, C, eps, alpha_init=alphaInit, nuref=muYref,
         max_error=SinkhornError, max_error_rel=SinkhornErrorRel,
         max_iter=SinkhornMaxIter, inner_iter=SinkhornInnerIter
@@ -814,7 +817,7 @@ def BatchSolveOnCell_CUDA_float(
     # Define cost for solver
     C = (tuple(xi.float() for xi in posX), tuple(yi.float() for yi in posY))
     # Solve problem
-    solver = LogSinkhornCudaImageOffset(
+    solver = LogSinkhornGPU.LogSinkhornCudaImageOffset(
         muXCell.float(), muYCell.float(), C, eps, alpha_init=alphaInit.float(),
         nuref=muYref.float(), max_error=SinkhornError,
         max_error_rel=SinkhornErrorRel, max_iter=SinkhornMaxIter,
@@ -875,7 +878,7 @@ def get_alpha_field_even_gpu(alphaA, alphaB, shapeXL, shapeXL_pad,
     alphaGraphGPU = torch.tensor(
         alphaGraph, device=alphaA.device, dtype=alphaA.dtype
     )
-    alphaAEven = alphaA - alphaGraphGPU.view(-1, *np.ones(dim, dtype=np.int))
+    alphaAEven = alphaA - alphaGraphGPU.view(-1, *np.ones(dim, dtype=np.int32))
     # alphaFieldEven = alphaA_field.cpu().numpy()
     # for a, c in zip(alphaGraph.ravel(), cellsA):
     #     print(c)
@@ -904,12 +907,9 @@ def CUDA_balance(muXCell, muY_basic):
     atomic_mass_nu = muY_basic.sum(-1)
     mass_delta = atomic_mass_nu - atomic_mass
     # print(f"balancing with {muY_basic.dtype}")
-    if muY_basic.dtype == torch.float64:
-        LogSinkhornGPU.BalanceCUDA_64(muY_basic, mass_delta, 1e-12)
-    elif muY_basic.dtype == torch.float32:
-        LogSinkhornGPU.BalanceCUDA_32(muY_basic, mass_delta, 1e-12)
-    else:
-        raise NotImplementedError()
+    threshold = torch.tensor(1e-12)
+    # Call LogSinkhornGPU backend function 
+    LogSinkhornGPU.backend.BalanceCUDA(muY_basic, mass_delta, threshold)
     return muY_basic.view(*muY_basic_shape)
 
 
@@ -1019,7 +1019,7 @@ def combine_cells(muY_basic, global_left, global_bottom, sum_indices, weights=1)
         global_composite_bottom, composite_height = \
         get_axis_bounds(muY_basic, mask, global_bottom, 1, sum_indices)
 
-    Nu_comp = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    Nu_comp = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         muY_basic, composite_width, composite_height,
         weights, sum_indices,
         relative_basic_left, basic_left, basic_width,
@@ -1393,7 +1393,7 @@ def crop_measure_to_box(rho_composite, global_left, global_bottom, rho):
     sum_indices_rho = torch.zeros((B, 1), **torch_options_int)
     weights = torch.ones((B, 1), **torch_options)
 
-    reference_rho = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    reference_rho = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         rho.view(1, *rho.shape), w, h,
         weights, sum_indices_rho,
         relative_left, global_left, comp_width,
@@ -1448,7 +1448,7 @@ def refine_marginals_CUDA(muY_basic, global_left, global_bottom,
 
     weights = torch.ones((B*C, 1), **torch_options)
 
-    refinement_weights_Y_box = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    refinement_weights_Y_box = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         refinement_weights_Y, w, h,
         weights, sum_indices_refine,
         relative_basic_left_refine, basic_left_refine, basic_width_refine,
@@ -1496,7 +1496,7 @@ def get_current_Y_marginal(muY_basic, global_left, global_bottom, shapeY):
     sum_indices_global = torch.arange(B, **torch_options_int).view(1, -1)
     weights = torch.ones((1, B), **torch_options)
 
-    muY_sum = LogSinkhornGPU.AddWithOffsetsCUDA_2D(
+    muY_sum = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
         muY_basic, *shapeY,
         weights, sum_indices_global,
         global_left.view(1, -1), basic_left.view(1, -
