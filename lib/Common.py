@@ -1,15 +1,26 @@
 import numpy as np
 import scipy
 import scipy.io as sciio
+import pickle
 
 def importMeasure(fn,subslice=None):
-    dat=np.array(sciio.loadmat(fn)["a"],dtype=np.double,order="C")
-    if subslice is not None:
-        dat=dat[subslice]
-    mu,pos=processDensity_Grid(dat,totalMass=1.)
-    return (mu,pos,dat.shape)
+    if fn.split(".")[-1] == "pickle":
+         return importMeasure_pickle(fn)
+    else:
+        dat=np.array(sciio.loadmat(fn)["a"],dtype=np.double,order="C")
+        if subslice is not None:
+            dat=dat[subslice]
+        mu,pos=processDensity_Grid(dat,totalMass=1.)
+        return (mu,pos,dat.shape)
 
-
+def importMeasure_pickle(fn):
+    # New load function using pickle
+    with open(fn, "rb") as f:
+        d = pickle.load(f)
+    mu = d["mu"]
+    pos = d["pos"]
+    shape = d["shape"]
+    return mu, pos, shape
 
 def getPoslistNCube(shape,dtype=np.double):
 	"""Create list of positions in an n-dimensional cube of size shape."""
