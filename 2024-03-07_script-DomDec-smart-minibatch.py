@@ -6,7 +6,7 @@ import lib.DomainDecomposition as DomDec
 import lib.DomainDecompositionGPU as DomDecGPU
 import lib.DomainDecompositionHybrid as DomDecHybrid
 import lib.MultiScaleOT as MultiScaleOT
-from LogSinkhornGPU import LogSinkhornCudaImage
+import LogSinkhornGPU
 
 import os
 import psutil
@@ -555,12 +555,11 @@ if params["aux_evaluate_scores"]:
         cellsize, basic_shape, muXL_np)
 
     # Get beta with sinkhorn iteration
-
-    solver_global = LogSinkhornCudaImage(
+    solver_global = LogSinkhornGPU.LogSinkhornCudaImage(
         muXL.view(1, *shapeX), muYL.view(1, *shapeY), dx, eps,
         alpha_init = alpha_global.view(1, *shapeX))
-    # solver_global.iterate(0)
-    # beta_global = solver_global.beta.squeeze()
+    solver_global.iterate(0)
+    beta_global = solver_global.beta.squeeze()
 
     # Dual Score
     dual_score = torch.sum(solver_global.alpha * solver_global.mu) + \
