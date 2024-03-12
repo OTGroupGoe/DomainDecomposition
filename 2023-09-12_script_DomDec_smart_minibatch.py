@@ -6,7 +6,6 @@ import lib.DomainDecomposition as DomDec
 import lib.DomainDecompositionGPU as DomDecGPU
 import lib.DomainDecompositionHybrid as DomDecHybrid
 import lib.MultiScaleOT as MultiScaleOT
-# from LogSinkhornGPU import LogSinkhornCudaImage
 from LogSinkhornGPU import LogSinkhornCudaImage
 
 import os
@@ -229,6 +228,9 @@ while nLayer <= nLayerFinest:
     X_width = shapeXL_pad[1]
     # dx = posXL[1, 1] - posXL[0, 1]
     dx = 2.0**(nLayerFinest - nLayer)
+    dxs = torch.tensor([dx, dx])
+    dys = torch.tensor([dx, dx])
+    dxs_dys = (dxs, dys)
 
     # TODO: do this directly
     basic_index_pad = torch.arange(
@@ -248,15 +250,15 @@ while nLayer <= nLayerFinest:
     bottomB = (min_index_cell_B % (b2+2) - 1)*cellsize
 
     x1A, x2A = DomDecGPU.get_grid_cartesian_coordinates(
-        leftA, bottomA, 2*cellsize, 2*cellsize, dx
+        leftA, bottomA, 2*cellsize, 2*cellsize, dxs
     )
     x1B, x2B = DomDecGPU.get_grid_cartesian_coordinates(
-        leftB, bottomB, 2*cellsize, 2*cellsize, dx
+        leftB, bottomB, 2*cellsize, 2*cellsize, dxs
     )
     posXA = (x1A, x2A)
     posXB = (x1B, x2B)
-    # Get current dx
-    dx = (x1A[0, 1] - x1A[0, 0]).item()
+    # # Get current dx
+    # dx = (x1A[0, 1] - x1A[0, 0]).item()
 
     basic_mass = muXL.view(b1, cellsize, b2, cellsize).sum((1, 3))
 
@@ -363,7 +365,7 @@ while nLayer <= nLayerFinest:
                 if (nLayer == nLayerFinest) and (nEps == 0) and (nIterations == 0):
                     print("dumping to file: aux_dump_finest_pre...")
                     with open(params["setup_dumpfile_finest_pre"], 'wb') as f:
-                        pickle.dump([muXL, muYL, eps, dx,
+                        pickle.dump([muXL, muYL, eps, dxs_dys,
                                      muY_basic, left, bottom,
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
@@ -375,7 +377,7 @@ while nLayer <= nLayerFinest:
             # iteration A
             time1 = time.perf_counter()
             alphaA, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
-                muYL, posY, dx, eps,
+                muYL, posY, dxs_dys, eps,
                 muXA, posXA, alphaA, muY_basic, left, bottom, shapeY, partA,
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
@@ -416,7 +418,7 @@ while nLayer <= nLayerFinest:
                 if (nLayer == nLayerFinest) and (nEps == 0):
                     print("dumping to file: after iter...")
                     with open(getDumpName("afterIter_nIter{:d}_A".format(nIterations)), 'wb') as f:
-                        pickle.dump([muXL, muYL, eps, dx,
+                        pickle.dump([muXL, muYL, eps, dxs_dys,
                                      muY_basic, left, bottom,
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
@@ -436,7 +438,7 @@ while nLayer <= nLayerFinest:
             # iteration B
             time1 = time.perf_counter()
             alphaB, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
-                muYL, posY, dx, eps,
+                muYL, posY, dxs_dys, eps,
                 muXB, posXB, alphaB, muY_basic, left, bottom, shapeY, partB,
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
@@ -476,7 +478,7 @@ while nLayer <= nLayerFinest:
                 if (nLayer == nLayerFinest) and (nEps == 0):
                     print("dumping to file: after iter...")
                     with open(getDumpName("afterIter_nIter{:d}_B".format(nIterations)), 'wb') as f:
-                        pickle.dump([muXL, muYL, eps, dx,
+                        pickle.dump([muXL, muYL, eps, dxs_dys,
                                      muY_basic, left, bottom,
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
@@ -505,7 +507,7 @@ while nLayer <= nLayerFinest:
             if nLayer == nLayerFinest:
                 print("dumping to file: after eps...")
                 with open(getDumpName("afterEps_nEps{:d}".format(nEps)), 'wb') as f:
-                    pickle.dump([muXL, muYL, eps, dx,
+                    pickle.dump([muXL, muYL, eps, dxs_dys,
                                  muY_basic, left, bottom,
                                  muXA.cpu(), alphaA.cpu(),
                                  muXB.cpu(), alphaB.cpu()], f, 2)
@@ -517,7 +519,7 @@ while nLayer <= nLayerFinest:
     if params["aux_dump_after_each_layer"]:
         print("dumping to file: after layer...")
         with open(getDumpName("afterLayer_l{:d}".format(nLayer)), 'wb') as f:
-            pickle.dump([muXL, muYL, eps, dx,
+            pickle.dump([muXL, muYL, eps, dxs_dys,
                          muY_basic, left, bottom,
                          muXA.cpu(), alphaA.cpu(),
                          muXB.cpu(), alphaB.cpu()], f, 2)
@@ -534,7 +536,7 @@ while nLayer <= nLayerFinest:
 if params["aux_dump_finest"]:
     print("dumping to file: aux_dump_finest...")
     with open(params["setup_dumpfile_finest"], 'wb') as f:
-        pickle.dump([muXL, muYL, eps, dx,
+        pickle.dump([muXL, muYL, eps, dxs_dys,
                      muY_basic, left, bottom,
                      muXA.cpu(), alphaA.cpu(),
                      muXB.cpu(), alphaB.cpu()], f, 2)
@@ -553,6 +555,7 @@ if params["aux_evaluate_scores"]:
         cellsize, basic_shape, muXL_np)
 
     # Get beta with sinkhorn iteration
+
     solver_global = LogSinkhornCudaImage(
         muXL.view(1, *shapeX), muYL.view(1, *shapeY), dx, eps,
         alpha_init = alpha_global.view(1, *shapeX))
@@ -568,7 +571,7 @@ if params["aux_evaluate_scores"]:
     # Get primal score
     # Get updated nu comp by doing a dummy domdec iteration
     _, _, _, _, info = DomDecGPU.MiniBatchIterate(
-        muYL, posY, dx, eps,
+        muYL, posY, dxs_dys, eps,
         muXB, posXB, alphaB, muY_basic, left, bottom, shapeY, partB,
         SinkhornError=params["sinkhorn_error"],
         SinkhornErrorRel=params["sinkhorn_error_rel"],

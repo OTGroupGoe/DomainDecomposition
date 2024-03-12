@@ -6,6 +6,7 @@ import lib.DomainDecomposition as DomDec
 import lib.DomainDecompositionGPU as DomDecGPU
 import lib.DomainDecompositionHybrid as DomDecHybrid
 import lib.MultiScaleOT as MultiScaleOT
+
 import LogSinkhornGPU
 
 import os
@@ -31,6 +32,14 @@ torch_options_int = dict(dtype=torch.int32, device=device)
 
 ###############################################################
 ###############################################################
+
+def get_dxs(pos, shape, dtype):
+    pos_res = pos.reshape((*shape, 2))
+    dx1 = pos_res[1,0,0] - pos_res[0,0,0] if shape[0] > 1 else 1.0
+    dx2 = pos_res[0,1,1] - pos_res[0,0,1] if shape[1] > 1 else 1.0
+    dxs = torch.tensor([dx1, dx2], device = "cpu", dtype = dtype)
+    return dxs
+
 
 # read parameters from command line and cfg file
 print(sys.argv)
@@ -74,12 +83,9 @@ for k in sorted(params.keys()):
 
 # Manual parameters
 params["aux_dump_after_each_layer"] = False
-params["aux_dump_finest"] = False  # TODO: change
-params["aux_evaluate_scores"] = True  # TODO: allow evaluation
+params["aux_dump_finest"] = True  # TODO: change
+params["aux_evaluate_scores"] = True
 params["sinkhorn_max_iter"] = 2000
-params["sinkhorn_inner_iter"] = 10
-params["sinkhorn_error"] = 1e-4
-
 
 params["aux_dump_after_each_eps"] = False
 params["aux_dump_after_each_iter"] = False
@@ -92,17 +98,20 @@ muX, posX, shapeX = Common.importMeasure(params["setup_fn1"])
 muY, posY, shapeY = Common.importMeasure(params["setup_fn2"])
 
 N = shapeX[0]
+posX *= N
+posY *= N
+
 cellsize = params["domdec_cellsize"]
-params["batchsize"] = np.inf
+# params["batchsize"] = np.inf
 params["clustering"] = True
-params["number_clusters"] = "smart"
 
 
 # Get multiscale torch hierarchy
 muX_final = torch.tensor(muX, **torch_options).view(shapeX)
-muY_final = torch.tensor(muY, **torch_options).view(shapeX)
+muY_final = torch.tensor(muY, **torch_options).view(shapeY)
 muX_layers = DomDecGPU.get_multiscale_layers(muX_final, shapeX)
-muY_layers = DomDecGPU.get_multiscale_layers(muY_final, shapeY)
+# All muY layers are the same
+# muY_layers = DomDecGPU.get_multiscale_layers(muY_final, shapeY)
 
 # muX: 1d array of masses
 # posX: (*,dim) array of locations of masses
@@ -113,12 +122,15 @@ muY_layers = DomDecGPU.get_multiscale_layers(muY_final, shapeY)
 posXD = posX.astype(np.float64)
 posYD = posY.astype(np.float64)
 
+# TODO: remove this if not needed
 # generate multi-scale representation of muX
+print(muX.dtype)
 MultiScaleSetupX = MultiScaleOT.TMultiScaleSetup(
     posXD, muX, params["hierarchy_depth"], childMode=MultiScaleOT.childModeGrid, setup=True, setupDuals=False, setupRadii=False)
 
-MultiScaleSetupY = MultiScaleOT.TMultiScaleSetup(
-    posYD, muY, params["hierarchy_depth"], childMode=MultiScaleOT.childModeGrid, setup=True, setupDuals=False, setupRadii=False)
+# No multiscale setup for muY
+# MultiScaleSetupY = MultiScaleOT.TMultiScaleSetup(
+#     posYD, muY, params["hierarchy_depth"], childMode=MultiScaleOT.childModeGrid, setup=True, setupDuals=False, setupRadii=False)
 
 
 # setup eps scaling
@@ -129,7 +141,6 @@ if params["eps_schedule"] == "default":
                                                       "eps_nIterationsLayerInit"], nIterationsGlobalInit=params["eps_nIterationsGlobalInit"],
                                                   nIterationsFinal=params["eps_nIterationsFinal"])
 
-    # Add a couple more iterations
     # for l in params["eps_list"]:
     #     for i, (eps, nsteps) in enumerate(l):
     #         l[i] = [eps*(params["domdec_cellsize"]/4)**2, nsteps]
@@ -153,7 +164,6 @@ evaluationData["time_join_clusters"] = 0.
 evaluationData["timeList_global"] = []
 
 evaluationData["sparsity_muYAtomicEntries"] = []
-evaluationData["shape_muYAtomicEntries"] = []
 
 globalTime1 = time.perf_counter()
 
@@ -194,14 +204,19 @@ while nLayer <= nLayerFinest:
     # TODO: how to get new layer size directly from multiscale solver?
     # TODO: Remove this if not used
     muXL_np = MultiScaleSetupX.getMeasure(nLayer)
-    muYL_np = MultiScaleSetupY.getMeasure(nLayer)
+    # muYL_np = MultiScaleSetupY.getMeasure(nLayer)
+    muYL_np = muY
     posXL = MultiScaleSetupX.getPoints(nLayer)
-    posYL = MultiScaleSetupY.getPoints(nLayer)
-    parentsXL = MultiScaleSetupX.getParents(nLayer)
-    parentsYL = MultiScaleSetupY.getParents(nLayer)
+    # posYL = MultiScaleSetupY.getPoints(nLayer)
+    posYL = posY
+    # This is not used anymore
+    # parentsXL = MultiScaleSetupX.getParents(nLayer)
+    # parentsYL = MultiScaleSetupY.getParents(nLayer)
+    # parentsYL = MultiScaleSetupY.getParents(nLayer)
     # End remove
     muXL = muX_layers[nLayer]
-    muYL = muY_layers[nLayer]
+    # muYL = muY_layers[nLayer]
+    muYL = muY_final
     shapeXL = muXL.shape
     shapeYL = muYL.shape
 
@@ -226,11 +241,14 @@ while nLayer <= nLayerFinest:
 
     # Get X grid coordinates
     X_width = shapeXL_pad[1]
-    # dx = posXL[1, 1] - posXL[0, 1]
-    dx = 2.0**(nLayerFinest - nLayer)
-    dxs = torch.tensor([dx, dx])
-    dys = torch.tensor([dx, dx])
+    print(posXL.shape, shapeXL)
+    dxs = get_dxs(posXL, shapeXL, torch_dtype)
+    dys = get_dxs(posYL, shapeYL, torch_dtype)
+
     dxs_dys = (dxs, dys)
+    # We still assume x grid is equispaced
+    dx = dxs_dys[0][0].item()
+    # dx = posXL[1, 1] - posXL[0, 1]
 
     # TODO: do this directly
     basic_index_pad = torch.arange(
@@ -246,7 +264,7 @@ while nLayer <= nLayerFinest:
     leftA = (torch.div(min_index_cell_A, b2+2, rounding_mode="trunc") -1)*cellsize
     leftB = (torch.div(min_index_cell_B, b2+2, rounding_mode="trunc") -1)*cellsize
 
-    bottomA = (min_index_cell_A % (b2+2) - 1)*cellsize  # Remove left padding
+    bottomA = (min_index_cell_A % (b2+2) - 1)*cellsize
     bottomB = (min_index_cell_B % (b2+2) - 1)*cellsize
 
     x1A, x2A = DomDecGPU.get_grid_cartesian_coordinates(
@@ -257,8 +275,10 @@ while nLayer <= nLayerFinest:
     )
     posXA = (x1A, x2A)
     posXB = (x1B, x2B)
-    # # Get current dx
-    # dx = (x1A[0, 1] - x1A[0, 0]).item()
+
+    # print(posXA)
+    # print(posXB)
+    # print(posY)
 
     basic_mass = muXL.view(b1, cellsize, b2, cellsize).sum((1, 3))
 
@@ -291,13 +311,42 @@ while nLayer <= nLayerFinest:
     else:
         # refine atomic Y marginals from previous layer
 
+        # muY_basic, left, bottom = DomDecGPU.refine_marginals_CUDA(
+        #     muY_basic_old, left_old, bottom_old,
+        #     basic_mass_old, basic_mass, muYLOld, muYL
+        # )
+        #
+        # For semidiscrete lebesgue we just need to copy along basic dimension
+        # and renormalize
+        # TODO: just generate dummy muYL and make a reduction afterwards to 
+        # bring back to right size. We only need muYLdummy
+        muYLdummy = (1/8) * torch.tensor([
+            [1, 1, 0, 0],
+            [1, 1, 0, 0],
+            [0, 0, 1, 1],           
+            [0, 0, 1, 1]            
+        ], **torch_options)
+
         muY_basic, left, bottom = DomDecGPU.refine_marginals_CUDA(
             muY_basic_old, left_old, bottom_old,
-            basic_mass_old, basic_mass, muYLOld, muYL
+            basic_mass_old, basic_mass, muYLOld + 1e-40, muYLdummy # small offset avoids division by zero
         )
+        # Reduce over dummy dimensions
+        muY_basic = muY_basic.view(-1, 2, 2, 2, 2).sum((-3, -1))
+        # Left and bottom need to be renormalized
+        left = left // 2
+        bottom = bottom // 2
+        # print(left_old)
+        # print(left)
+        # print(bottom_old)
+        # print(bottom)
+        # print(muY_basic_old)
+        # print(muY_basic)
+
+        print(muY_basic_old.shape, muY_basic.shape, left.shape, bottom.shape)
 
         if params["domdec_refineAlpha"]:
-            # Inerpolate previous alpha field
+            # Interpolate previous alpha field
 
             alphaA = torch.nn.functional.interpolate(
                 alphaFieldEven[None, None, :, :], scale_factor=2,
@@ -332,11 +381,10 @@ while nLayer <= nLayerFinest:
     ################################################################################################################################
 
     # Clustering parameters
-
+    params["number_clusters"] = 1 # for semidiscrete we don't need so much
     N_clusters = params["number_clusters"]
     # params["batchsize"] = max((N//(2*cellsize) + 1)**2 // N_clusters, 2000)
-    # params["batchsize"] = (N//(2*cellsize) + 1)**2 // N_clusters
-    params["batchsize"] = np.inf
+    params["batchsize"] = (N//(2*cellsize) + 1)**2 // N_clusters
 
     if params["aux_printLayerConsistency"]:
         # TODO: rephrase muY_basic
@@ -356,7 +404,7 @@ while nLayer <= nLayerFinest:
 
     # run algorithm at layer
     for nEps, (eps, nIterationsMax) in enumerate(params["eps_list"][nLayer]):
-        print("eps: {:f}".format(eps))
+        print("eps: {:f}".format(eps)) # TODO: Probably we need to rescale eps here.
         for nIterations in range(nIterationsMax):
 
             #################################
@@ -387,7 +435,6 @@ while nLayer <= nLayerFinest:
                 clustering = params["clustering"],
                 N_clusters = params["number_clusters"]
             )
-            # solverA = info["solver"]
 
             time2 = time.perf_counter()
             evaluationData["time_iterate"] += time2-time1
@@ -397,20 +444,16 @@ while nLayer <= nLayerFinest:
             evaluationData["time_bounding_box"] += info["time_bounding_box"]
             evaluationData["time_clustering"] += info["time_clustering"]
             evaluationData["time_join_clusters"] += info["time_join_clusters"]
-            Niter_per_batch = [solverB.Niter for solverB in info["solver"]]
             print(
-                f"Niter = {Niter_per_batch}, bounding box = {info['bounding_box']}")
+                f"Niter = {info['solver'][0].Niter}, bounding box = {info['bounding_box']}")
 
             ################################
             # count total entries in muYAtomicList:
             bbox_size = tuple(muY_basic.shape[1:])
-            nrEntries = int(torch.sum(muY_basic > 0).item())
-            shape_muY_basic = int(np.prod(muY_basic.shape))
-            print(f"basic bbox: {bbox_size}")
+            nrEntries = int(np.prod(muY_basic.shape))
+            print(f"bbox: {bbox_size}")
             evaluationData["sparsity_muYAtomicEntries"].append(
                 [nLayer, nEps, nIterations, 0, nrEntries])
-            evaluationData["shape_muYAtomicEntries"].append(
-                [nLayer, nEps, nIterations, 0, shape_muY_basic])
             
             ################################
             # dump after each iteration
@@ -454,23 +497,9 @@ while nLayer <= nLayerFinest:
             evaluationData["time_measureBalancing"] += info["time_balance"]
             evaluationData["time_measureTruncation"] += info["time_truncation"]
             evaluationData["time_bounding_box"] += info["time_bounding_box"]
-            Niter_per_batch = [solverB.Niter for solverB in info["solver"]]
             print(
-                f"Niter = {Niter_per_batch}, bounding box = {info['bounding_box']}")
-
+                f"Niter = {info['solver'][0].Niter}, bounding box = {info['bounding_box']}")
             ################################
-
-            ################################
-            # count total entries in muYAtomicList:
-            bbox_size = tuple(muY_basic.shape[1:])
-            nrEntries = int(torch.sum(muY_basic > 0).item())
-            shape_muY_basic = int(np.prod(muY_basic.shape))
-            print(f"basic bbox: {bbox_size}")
-            evaluationData["sparsity_muYAtomicEntries"].append(
-                [nLayer, nEps, nIterations, 1, nrEntries])
-            evaluationData["shape_muYAtomicEntries"].append(
-                [nLayer, nEps, nIterations, 1, shape_muY_basic])
-
 
             #################################
             # dump after each iteration
@@ -542,7 +571,6 @@ if params["aux_dump_finest"]:
                      muXB.cpu(), alphaB.cpu()], f, 2)
     print("dumping done.")
 
-
 #####################################
 # evaluate primal and dual score
 if params["aux_evaluate_scores"]:
@@ -553,12 +581,31 @@ if params["aux_evaluate_scores"]:
     alpha_global = DomDecGPU.get_alpha_field_even_gpu(
         alphaA, alphaB, shapeXL, shapeXL_pad,
         cellsize, basic_shape, muXL_np)
+    print(alpha_global)
 
     # Get beta with sinkhorn iteration
-    solver_global = LogSinkhornGPU.LogSinkhornCudaImage(
-        muXL.view(1, *shapeX), muYL.view(1, *shapeY), dx, eps,
+    left_global = torch.zeros(1, **torch_options_int)
+    bottom_global = torch.zeros(1, **torch_options_int)
+    posX_global = DomDecGPU.get_grid_cartesian_coordinates(
+        left_global, bottom_global, *shapeX, dxs
+    )
+    posY_global = DomDecGPU.get_grid_cartesian_coordinates(
+        left_global, bottom_global, *shapeY, dys
+    )
+    # print(posX_global)
+    # print(posY_global)
+    # print(left.view(*basic_shape))
+    C = (posX_global, posY_global)
+    solver_global = LogSinkhornGPU.LogSinkhornCudaImageOffset(
+        muXL.view(1, *shapeXL), muYL.view(1, *shapeYL), C, eps, 
         alpha_init = alpha_global.view(1, *shapeX))
-    solver_global.iterate(0)
+
+
+    # solver_global = LogSinkhorn(
+    #     muXL.view(1, *shapeX), muYL.view(1, *shapeY), dx, eps,
+    #     alpha_init = alpha_global.view(1, *shapeX))
+    error = solver_global.iterate(1)
+    print("error", error)
     beta_global = solver_global.beta.squeeze()
 
     # Dual Score
@@ -608,8 +655,9 @@ if params["aux_evaluate_scores"]:
         evaluationData["solution_"+k] = solution_infos[k]
 
 
+
 #####################################
 # dump evaluationData into json result file:
-print(evaluationData)
+# print(evaluationData)
 with open(params["setup_resultfile"], "w") as f:
     json.dump(evaluationData, f)
