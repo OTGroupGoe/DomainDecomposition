@@ -1274,7 +1274,7 @@ def BatchDomDecIterationBox_CUDA(
     info = dict()
     # 1: compute composite cell marginals
     # Get basic shape size
-    dxs, dys = dxs, dys
+    dxs, dys = dxs_dys
     t0 = time.perf_counter()
     _, w0, h0 = muY_basic.shape
     torch_options = dict(device=muY_basic.device, dtype=muY_basic.dtype)
