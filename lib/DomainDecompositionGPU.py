@@ -748,10 +748,18 @@ def MiniBatchIterate(
     SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
     SinkhornInnerIter=100, batchsize=np.inf, clustering=False, N_clusters="smart"
 ):
-    # partition is now of shape (B, C)
-    # partition[i,:] are the basic cells in composite cell i
-    # there can be -1's to encode for smaller cells
-    # Clustering if one wants to apply a cluster algorithm for the minibatching
+    """
+    Perform a domain decomposition iteration on the composite cells given by 
+    partition.
+
+    It divides the partition into smaller minibatches, each of which is 
+    processed as a chunk of data on the GPU. The strategy to produce the 
+    minibatches can be clustering them according to the problem size (if 
+    `clustering` is `True`), or just making chunks of size `batchsize` (if it 
+    this parameter is smaller than `np.inf`). `N_clusters` controls the number
+    of clusters; it can also be set to "smart"; which adapts it to the 
+    resolution.
+    """
 
     torch_options = muY_basic_box.options
 
@@ -779,18 +787,18 @@ def MiniBatchIterate(
                          device=torch_options["device"], dtype=torch.int64)
             for i in range(N_batches)
         ]
-        # print([len(batch) for batch in minibatches])
     time_clustering = time.perf_counter() - t0
     N_batches = len(minibatches)  # If some cluster was empty it was removed
+
+    # Prepare for minibatch iterations
     new_offsets = torch.zeros_like(muY_basic_box.offsets)
     batch_muY_basic_list = []
     info = None
     dims_batch = np.zeros((N_batches, 2), dtype=np.int64)
-    # print(N_batches, minibatches)
     for (i, batch) in enumerate(minibatches):
         posXJ_batch = tuple(xi[batch] for xi in posXJ)
         alpha_batch, basic_idx_batch, muY_basic_box_batch, info_batch = \
-            BatchDomDecIterationMinibatch_CUDA(
+            MiniBatchDomDecIteration_CUDA(
                 SinkhornError, SinkhornErrorRel, muY, posY, dxs_dys, eps, shapeY,
                 muXJ[batch], posXJ_batch, alphaJ[batch],
                 muY_basic_box, partition[batch],
@@ -806,6 +814,7 @@ def MiniBatchIterate(
                     info[key] += info_batch[key]
             info["solver"].append(info_batch["solver"])
             info["bounding_box"].append(info_batch["bounding_box"])
+
         # Slide marginals to corner to get the smallest bbox later
         t0 = time.perf_counter()
         muY_basic_box_batch = slide_marginals_to_corner(muY_basic_box_batch)
@@ -817,13 +826,11 @@ def MiniBatchIterate(
         new_offsets[basic_idx_batch] = muY_basic_box_batch.offsets
         dims_batch[i, :] = muY_basic_box_batch.box_shape
 
-        # Save basic cell marginals for the end
+        # Save basic cell marginals for combining them at the end
         batch_muY_basic_list.append((basic_idx_batch,muY_basic_box_batch.data))
     info["time_clustering"] = time_clustering
-    # Combine all batches together
-    # Get bounding box
-
-    # Joint problems
+    
+    # Prepare combined bounding box
     t0 = time.perf_counter()
     w, h = np.max(dims_batch, axis=0)
     muY_basic = torch.zeros(B, w, h, **torch_options)
@@ -835,14 +842,16 @@ def MiniBatchIterate(
     muY_basic_box = BoundingBox(muY_basic, new_offsets, global_shape = shapeY)
     return alphaJ, muY_basic_box, info
 
-
-def BatchDomDecIterationMinibatch_CUDA(
+def MiniBatchDomDecIteration_CUDA(
         SinkhornError, SinkhornErrorRel, muY, posYCell, dxs_dys, eps, shapeY,
         # partitionDataCompCellIndices,
         muXCell, posXCell, alphaCell,
         muY_basic_box, partition,
         SinkhornMaxIter, SinkhornInnerIter, balance=True):
 
+    """
+    Performs a GPU Sinkhorn iteration on the minibatch given by `partition`.
+    """
     info = dict()
     # 1: compute composite cell marginals
     # Get basic shape size
@@ -923,6 +932,10 @@ def BatchDomDecIterationMinibatch_CUDA(
 
 
 def basic_to_composite_minibatch_CUDA_2D(muY_basic_box, partition):
+    """
+    Combines basic cells into composite cells according to the minibatch
+    specified by `partition`.
+    """
     # muY_basic is of shape (B, s1, ..., sd)
     B, C = partition.shape
     sum_indices = partition.clone()
@@ -945,7 +958,9 @@ def basic_to_composite_minibatch_CUDA_2D(muY_basic_box, partition):
 
 # Adapted from a keops tutorial
 def KMeans(x, K=10, Niter=20, verbose=True):
-    """Implements Lloyd's algorithm for the Euclidean metric."""
+    """
+    Implements Lloyd's algorithm for the Euclidean metric.
+    """
 
     N, D = x.shape  # Number of samples, dimension of the ambient space
 
@@ -978,6 +993,9 @@ def KMeans(x, K=10, Niter=20, verbose=True):
 # TODO: make all of this more modular. This basically copies get_axis_bounds
 # and takes just what is needed
 def get_axis_composite_extent(muY_basic, mask, global_minus, axis, sum_indices):
+    """
+    Computes the size of the composite extent along a given axis.
+    """
     B = muY_basic.shape[0]
     geom_shape = muY_basic.shape[1:]
     n = geom_shape[axis]
@@ -1014,6 +1032,10 @@ def get_axis_composite_extent(muY_basic, mask, global_minus, axis, sum_indices):
 
 def get_minibatches_clustering(muY_basic_box,
                                partition, N_problems):
+    """
+    Clusters the partition indices according to the size of the 
+    composite problem marginal. 
+    """
 
     # Remove -1's
     B, C = partition.shape
