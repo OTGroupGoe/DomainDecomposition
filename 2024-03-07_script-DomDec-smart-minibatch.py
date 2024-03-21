@@ -176,9 +176,7 @@ while nLayer <= nLayerFinest:
         # TODO: generalize for 3D
         b1, b2 = basic_shape
         c1, c2 = b1//2, b2//2
-        muY_basic_old = muY_basic
-        left_old = left
-        bottom_old = bottom
+        muY_basic_box_old = muY_basic_box
         muXLOld = muXL
         muYLOld = muYL
         basic_mass_old = basic_mass
@@ -249,12 +247,15 @@ while nLayer <= nLayerFinest:
     bottomA = (min_index_cell_A % (b2+2) - 1)*cellsize  # Remove left padding
     bottomB = (min_index_cell_B % (b2+2) - 1)*cellsize
 
-    x1A, x2A = DomDecGPU.get_grid_cartesian_coordinates(
-        leftA, bottomA, 2*cellsize, 2*cellsize, dxs
-    )
-    x1B, x2B = DomDecGPU.get_grid_cartesian_coordinates(
-        leftB, bottomB, 2*cellsize, 2*cellsize, dxs
-    )
+    offsetsA = torch.cat((leftA[:,None], bottomA[:,None]), 1)
+    offsetsB = torch.cat((leftB[:,None], bottomB[:,None]), 1)
+
+    muXA_box = DomDecGPU.BoundingBox(muXA, offsetsA, global_shape = shapeXL)
+    muXB_box = DomDecGPU.BoundingBox(muXB, offsetsB, global_shape = shapeXL_pad)
+
+    x1A, x2A = DomDecGPU.get_grid_cartesian_coordinates(muXA_box, dxs)
+    x1B, x2B = DomDecGPU.get_grid_cartesian_coordinates(muXB_box, dxs)
+
     posXA = (x1A, x2A)
     posXB = (x1B, x2B)
     # # Get current dx
@@ -280,8 +281,11 @@ while nLayer <= nLayerFinest:
         # ]
         muY_basic = basic_mass.view(-1, 1, 1) * muYL.view(1, *shapeYL)
         B = muY_basic.shape[0]
-        left = torch.zeros(B, **torch_options_int)
-        bottom = torch.zeros(B, **torch_options_int)
+        # left = torch.zeros(B, **torch_options_int)
+        # bottom = torch.zeros(B, **torch_options_int)
+        offsets = torch.zeros((B, 2), **torch_options_int)
+        muY_basic_box = DomDecGPU.BoundingBox(muY_basic, offsets, 
+                                              global_shape = shapeYL)
 
         alphaA = torch.zeros(shapeXL, **torch_options)
         alphaA = alphaA.view(-1, 2*cellsize, 2*cellsize)
@@ -290,11 +294,8 @@ while nLayer <= nLayerFinest:
 
     else:
         # refine atomic Y marginals from previous layer
-
-        muY_basic, left, bottom = DomDecGPU.refine_marginals_CUDA(
-            muY_basic_old, left_old, bottom_old,
-            basic_mass_old, basic_mass, muYLOld, muYL
-        )
+        muY_basic_box = DomDecGPU.refine_marginals_CUDA(
+            muY_basic_box_old, basic_mass_old, basic_mass, muYLOld, muYL)
 
         if params["domdec_refineAlpha"]:
             # Inerpolate previous alpha field
@@ -366,7 +367,8 @@ while nLayer <= nLayerFinest:
                     print("dumping to file: aux_dump_finest_pre...")
                     with open(params["setup_dumpfile_finest_pre"], 'wb') as f:
                         pickle.dump([muXL, muYL, eps, dxs_dys,
-                                     muY_basic, left, bottom,
+                                     muY_basic_box.data.cpu(), 
+                                     muY_basic_box.offsets.cpu(),
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
                     print("dumping done.")
@@ -376,9 +378,9 @@ while nLayer <= nLayerFinest:
             ################################
             # iteration A
             time1 = time.perf_counter()
-            alphaA, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
+            alphaA, muY_basic_box, info = DomDecGPU.MiniBatchIterate(
                 muYL, posY, dxs_dys, eps,
-                muXA, posXA, alphaA, muY_basic, left, bottom, shapeY, partA,
+                muXA, posXA, alphaA, muY_basic_box, shapeY, partA,
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
@@ -419,7 +421,8 @@ while nLayer <= nLayerFinest:
                     print("dumping to file: after iter...")
                     with open(getDumpName("afterIter_nIter{:d}_A".format(nIterations)), 'wb') as f:
                         pickle.dump([muXL, muYL, eps, dxs_dys,
-                                     muY_basic, left, bottom,
+                                     muY_basic_box.data.cpu(), 
+                                     muY_basic_box.offsets.cpu(),
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
                     print("dumping done.")
@@ -437,9 +440,9 @@ while nLayer <= nLayerFinest:
             ################################
             # iteration B
             time1 = time.perf_counter()
-            alphaB, muY_basic, left, bottom, info = DomDecGPU.MiniBatchIterate(
+            alphaB, muY_basic_box, info = DomDecGPU.MiniBatchIterate(
                 muYL, posY, dxs_dys, eps,
-                muXB, posXB, alphaB, muY_basic, left, bottom, shapeY, partB,
+                muXB, posXB, alphaB, muY_basic_box, shapeY, partB,
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
@@ -479,7 +482,8 @@ while nLayer <= nLayerFinest:
                     print("dumping to file: after iter...")
                     with open(getDumpName("afterIter_nIter{:d}_B".format(nIterations)), 'wb') as f:
                         pickle.dump([muXL, muYL, eps, dxs_dys,
-                                     muY_basic, left, bottom,
+                                     muY_basic_box.data.cpu(), 
+                                     muY_basic_box.offsets.cpu(),
                                      muXA.cpu(), alphaA.cpu(),
                                      muXB.cpu(), alphaB.cpu()], f, 2)
                     print("dumping done.")
@@ -508,7 +512,8 @@ while nLayer <= nLayerFinest:
                 print("dumping to file: after eps...")
                 with open(getDumpName("afterEps_nEps{:d}".format(nEps)), 'wb') as f:
                     pickle.dump([muXL, muYL, eps, dxs_dys,
-                                 muY_basic, left, bottom,
+                                 muY_basic_box.data.cpu(), 
+                                 muY_basic_box.offsets.cpu(),
                                  muXA.cpu(), alphaA.cpu(),
                                  muXB.cpu(), alphaB.cpu()], f, 2)
                 print("dumping done.")
@@ -520,7 +525,8 @@ while nLayer <= nLayerFinest:
         print("dumping to file: after layer...")
         with open(getDumpName("afterLayer_l{:d}".format(nLayer)), 'wb') as f:
             pickle.dump([muXL, muYL, eps, dxs_dys,
-                         muY_basic, left, bottom,
+                         muY_basic_box.data.cpu(), 
+                         muY_basic_box.offsets.cpu(),
                          muXA.cpu(), alphaA.cpu(),
                          muXB.cpu(), alphaB.cpu()], f, 2)
         print("dumping done.")
@@ -537,7 +543,8 @@ if params["aux_dump_finest"]:
     print("dumping to file: aux_dump_finest...")
     with open(params["setup_dumpfile_finest"], 'wb') as f:
         pickle.dump([muXL, muYL, eps, dxs_dys,
-                     muY_basic, left, bottom,
+                     muY_basic_box.data.cpu(), 
+                     muY_basic_box.offsets.cpu(),
                      muXA.cpu(), alphaA.cpu(),
                      muXB.cpu(), alphaB.cpu()], f, 2)
     print("dumping done.")
@@ -569,9 +576,9 @@ if params["aux_evaluate_scores"]:
 
     # Get primal score
     # Get updated nu comp by doing a dummy domdec iteration
-    _, _, _, _, info = DomDecGPU.MiniBatchIterate(
+    _, _, info = DomDecGPU.MiniBatchIterate(
         muYL, posY, dxs_dys, eps,
-        muXB, posXB, alphaB, muY_basic, left, bottom, shapeY, partB,
+        muXB, posXB, alphaB, muY_basic_box, shapeY, partB,
         SinkhornError=params["sinkhorn_error"],
         SinkhornErrorRel=params["sinkhorn_error_rel"],
         SinkhornMaxIter=0,
@@ -593,7 +600,7 @@ if params["aux_evaluate_scores"]:
     solution_infos["scoreGap"] = primal_score - dual_score
     solution_infos["scoreGapRel"] = (primal_score - dual_score)/primal_score
     # muY error
-    current_muY = DomDecGPU.get_current_Y_marginal(muY_basic, left, bottom, shapeYL) 
+    current_muY = DomDecGPU.get_current_Y_marginal(muY_basic_box, shapeYL) 
     muY_error = torch.abs(current_muY.ravel() - muYL.ravel()).sum().item()
     solution_infos["errorMargY"] = muY_error
 
@@ -611,5 +618,5 @@ if params["aux_evaluate_scores"]:
 #####################################
 # dump evaluationData into json result file:
 print(evaluationData)
-with open(params["setup_resultfile"], "w") as f:
-    json.dump(evaluationData, f)
+# with open(params["setup_resultfile"], "w") as f:
+#     json.dump(evaluationData, f)
