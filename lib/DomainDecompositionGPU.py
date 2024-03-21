@@ -31,20 +31,16 @@ class BoundingBox:
         Holds data for bounding box representation.
     offsets : torch.Tensor of size (B, dim)
         Holds index offset of respective box.
-    points : torch.Tensor of size (*global_shape, dim), or None
-        Holds the coordinates of the global positions.
     """
-    def __init__(self, data, offsets, points = None, global_shape = None):
+    # TODO: so that BoundingBox is self-contained, it should also somehow
+    # encapsulate the coordinates of Y. We leave this for the future.
+    def __init__(self, data, offsets, global_shape):
         self.data = data
         self.B = data.shape[0]
         self.box_shape = data.shape[1:]
         self.dim = len(self.box_shape)
         self.offsets = offsets
-        self.points = points
-        if global_shape is None:
-            self.global_shape = points.shape[:-1]
-        else:
-            self.global_shape = global_shape
+        self.global_shape = global_shape
         self.options = dict(device = data.device, dtype = data.dtype)
         self.options_int = dict(device = offsets.device, dtype = offsets.dtype)
 
@@ -186,10 +182,8 @@ def batch_cell_marginals_2D(marg_indices, marg_data, shapeY, muY):
     left = torch.tensor(left)
     right = torch.tensor(right)
     offsets = combine_offsets(left, right)
-    Nu_bounding_box = BoundingBox(torch.tensor(Nu_box), offsets, 
-                                  global_shape = shapeY)
-    Nuref_bounding_box = BoundingBox(torch.tensor(Nuref_box), offsets, 
-                                     global_shape = shapeY)
+    Nu_bounding_box = BoundingBox(torch.tensor(Nu_box), offsets, shapeY)
+    Nuref_bounding_box = BoundingBox(torch.tensor(Nuref_box), offsets, shapeY)
     return Nu_bounding_box, Nuref_bounding_box
 
 def unpack_cell_marginals_2D(muY_basic, threshold=1e-15):
@@ -532,7 +526,7 @@ def combine_cells(muY_basic_box, sum_indices, weights=1):
 
     offsets_comp = combine_offsets(
         global_composite_left, global_composite_bottom)
-    muYCell_box = BoundingBox(Nu_comp, offsets_comp, global_shape = shapeY)
+    muYCell_box = BoundingBox(Nu_comp, offsets_comp, shapeY)
 
     return muYCell_box
 
@@ -677,8 +671,7 @@ def refine_marginals_CUDA(muY_basic_box, basic_mass_coarse, basic_mass_fine,
 
     # Compose new bounding box
     offsets = combine_offsets(global_left_refine, global_bottom_refine)
-    muY_basic_refine_box = BoundingBox(muY_basic_refine, offsets, 
-                                       global_shape = shapeY)
+    muY_basic_refine_box = BoundingBox(muY_basic_refine, offsets, shapeY)
 
     return muY_basic_refine_box
 
@@ -839,7 +832,7 @@ def MiniBatchIterate(
         muY_basic[basic_idx, :w_i, :h_i] = muY_batch
     info["time_join_clusters"] = time.perf_counter() - t0
     # Create bounding box
-    muY_basic_box = BoundingBox(muY_basic, new_offsets, global_shape = shapeY)
+    muY_basic_box = BoundingBox(muY_basic, new_offsets, shapeY)
     return alphaJ, muY_basic_box, info
 
 def MiniBatchDomDecIteration_CUDA(
@@ -922,8 +915,7 @@ def MiniBatchDomDecIteration_CUDA(
     muY_basic_batch = muY_basic_batch[mask]
     offsets_batch = offsets_basic[mask]
 
-    muY_basic_batch_box = BoundingBox(muY_basic_batch, offsets_batch, 
-                                      global_shape = shapeY)
+    muY_basic_batch_box = BoundingBox(muY_basic_batch, offsets_batch, shapeY)
 
     info["time_bounding_box"] += time.perf_counter() - t0
 

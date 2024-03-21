@@ -250,8 +250,8 @@ while nLayer <= nLayerFinest:
     offsetsA = torch.cat((leftA[:,None], bottomA[:,None]), 1)
     offsetsB = torch.cat((leftB[:,None], bottomB[:,None]), 1)
 
-    muXA_box = DomDecGPU.BoundingBox(muXA, offsetsA, global_shape = shapeXL)
-    muXB_box = DomDecGPU.BoundingBox(muXB, offsetsB, global_shape = shapeXL_pad)
+    muXA_box = DomDecGPU.BoundingBox(muXA, offsetsA, shapeXL)
+    muXB_box = DomDecGPU.BoundingBox(muXB, offsetsB, shapeXL_pad)
 
     x1A, x2A = DomDecGPU.get_grid_cartesian_coordinates(muXA_box, dxs)
     x1B, x2B = DomDecGPU.get_grid_cartesian_coordinates(muXB_box, dxs)
@@ -284,8 +284,7 @@ while nLayer <= nLayerFinest:
         # left = torch.zeros(B, **torch_options_int)
         # bottom = torch.zeros(B, **torch_options_int)
         offsets = torch.zeros((B, 2), **torch_options_int)
-        muY_basic_box = DomDecGPU.BoundingBox(muY_basic, offsets, 
-                                              global_shape = shapeYL)
+        muY_basic_box = DomDecGPU.BoundingBox(muY_basic, offsets, shapeYL)
 
         alphaA = torch.zeros(shapeXL, **torch_options)
         alphaA = alphaA.view(-1, 2*cellsize, 2*cellsize)
