@@ -64,7 +64,8 @@ def get_edge_costs_2D(solver_domdec, basic_shape, cellsize, muX_basic, basic_mas
     Ns = solver_domdec.beta.shape[1:]
     C,X,Y = solver_domdec.get_dense_cost()
     pi = solver_domdec.get_dense_plan(C=C)
-    dx = solver_domdec.get_dx()
+    dxs = solver_domdec.C[0]
+    dx = dxs[0].item()
     dim = X.shape[-1]
 
     # Get pi, cost, offsets
@@ -96,7 +97,7 @@ def get_edge_costs_2D(solver_domdec, basic_shape, cellsize, muX_basic, basic_mas
     N_edges_v = sb1*(sb2-1)
     N_edges_h = (sb1-1)*sb2
     gamma_up = gamma[:N_edges_v].reshape(sb1, sb2-1, cellsize*cellsize, cellsize*cellsize).contiguous()
-    gamma_right = gamma[N_edges_v:].reshape(sb1-1, sb2, cellsize*cellsize, cellsize*cellsize).contiguous()
+    gamma_right = gamma[N_edges_h:].reshape(sb1-1, sb2, cellsize*cellsize, cellsize*cellsize).contiguous()
     c_bar_list = []
     pi_i_disint = pi_basic / muX_basic[:,:,:,None]
 
