@@ -1621,11 +1621,13 @@ def MiniBatchIterate(
         if info is None:
             info = info_batch
             info["solver"] = [info["solver"]]
+            info["bounding_box"] =[info["bounding_box"]]
         else:
             for key in info_batch.keys():
                 if key[:4] == "time":
                     info[key] += info_batch[key]
             info["solver"].append(info_batch["solver"])
+            info["bounding_box"].append(info_batch["bounding_box"])
         # Slide marginals to corner to get the smallest bbox later
         t0 = time.perf_counter()
         muY_basic_batch, left_batch, bottom_batch = \
