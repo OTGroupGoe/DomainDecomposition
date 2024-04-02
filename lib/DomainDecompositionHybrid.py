@@ -62,7 +62,7 @@ def get_edge_costs_2D(solver_domdec, basic_shape, cellsize, muX_basic, basic_mas
     B = solver_domdec.alpha.shape[0]
     Ms = solver_domdec.alpha.shape[1:]
     Ns = solver_domdec.beta.shape[1:]
-    C,X,Y = solver_domdec.get_dense_cost()
+    C,X,Y = solver_domdec.get_cost()
     pi = solver_domdec.get_dense_plan(C=C)
     dxs = solver_domdec.C[0]
     dx = dxs[0].item()
