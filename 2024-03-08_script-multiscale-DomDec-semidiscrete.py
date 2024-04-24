@@ -404,7 +404,7 @@ while nLayer <= nLayerFinest:
 
     # run algorithm at layer
     for nEps, (eps, nIterationsMax) in enumerate(params["eps_list"][nLayer]):
-        print("eps: {:f}".format(eps)) # TODO: Probably we need to rescale eps here.
+        print("eps: {:f}".format(eps)) 
         for nIterations in range(nIterationsMax):
 
             #################################
@@ -565,8 +565,8 @@ while nLayer <= nLayerFinest:
 if params["aux_dump_finest"]:
     print("dumping to file: aux_dump_finest...")
     with open(params["setup_dumpfile_finest"], 'wb') as f:
-        pickle.dump([muXL, muYL, eps, dxs_dys,
-                     muY_basic, left, bottom,
+        pickle.dump([muXL.cpu(), muYL.cpu(), eps, dxs_dys,
+                     muY_basic.cpu(), left.cpu(), bottom.cpu(),
                      muXA.cpu(), alphaA.cpu(),
                      muXB.cpu(), alphaB.cpu()], f, 2)
     print("dumping done.")
@@ -581,7 +581,6 @@ if params["aux_evaluate_scores"]:
     alpha_global = DomDecGPU.get_alpha_field_even_gpu(
         alphaA, alphaB, shapeXL, shapeXL_pad,
         cellsize, basic_shape, muXL_np)
-    print(alpha_global)
 
     # Get beta with sinkhorn iteration
     left_global = torch.zeros(1, **torch_options_int)

@@ -76,7 +76,7 @@ for k in sorted(params.keys()):
 params["aux_dump_after_each_layer"] = False
 params["aux_dump_finest"] = False  # TODO: change
 params["aux_evaluate_scores"] = True  # TODO: allow evaluation
-params["sinkhorn_max_iter"] = 2000
+params["sinkhorn_max_iter"] = 10000
 params["sinkhorn_inner_iter"] = 10
 params["sinkhorn_error"] = 1e-4
 
@@ -191,15 +191,16 @@ while nLayer <= nLayerFinest:
     # basic data of current layer
     # TODO: how to get new layer size directly from multiscale solver?
     # TODO: Remove this if not used
-    muXL_np = MultiScaleSetupX.getMeasure(nLayer)
-    muYL_np = MultiScaleSetupY.getMeasure(nLayer)
-    posXL = MultiScaleSetupX.getPoints(nLayer)
-    posYL = MultiScaleSetupY.getPoints(nLayer)
-    parentsXL = MultiScaleSetupX.getParents(nLayer)
-    parentsYL = MultiScaleSetupY.getParents(nLayer)
+    # muXL_np = MultiScaleSetupX.getMeasure(nLayer)
+    # muYL_np = MultiScaleSetupY.getMeasure(nLayer)
+    # posXL = MultiScaleSetupX.getPoints(nLayer)
+    # posYL = MultiScaleSetupY.getPoints(nLayer)
+    # parentsXL = MultiScaleSetupX.getParents(nLayer)
+    # parentsYL = MultiScaleSetupY.getParents(nLayer)
     # End remove
     muXL = muX_layers[nLayer]
     muYL = muY_layers[nLayer]
+    muXL_np = muXL.cpu().numpy().ravel()
     shapeXL = muXL.shape
     shapeYL = muYL.shape
 
@@ -270,7 +271,6 @@ while nLayer <= nLayerFinest:
 
     partB = basic_index_B.view(c1+1, 2, c2+1, 2).permute(0,2,1,3).reshape(-1,4)
 
-
     if nLayer == nLayerTop:
         # Init cell marginals for first layer
         # TODO: first layer
@@ -326,7 +326,7 @@ while nLayer <= nLayerFinest:
     betaAIndexList = [None for i in range(alphaA.shape[0])]
     betaBDataList = [None for i in range(alphaB.shape[0])]
     betaBIndexList = [None for i in range(alphaB.shape[0])]
-
+    
     timeRefine2 = time.perf_counter()
     evaluationData["time_refine"] += timeRefine2-timeRefine1
     ################################################################################################################################
@@ -379,7 +379,7 @@ while nLayer <= nLayerFinest:
             time1 = time.perf_counter()
             alphaA, muY_basic_box, info = DomDecGPU.MiniBatchIterate(
                 muYL, posY, dxs_dys, eps,
-                muXA, posXA, alphaA, muY_basic_box, shapeY, partA,
+                muXA, posXA, alphaA, muY_basic_box, shapeYL, partA,
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
@@ -441,7 +441,7 @@ while nLayer <= nLayerFinest:
             time1 = time.perf_counter()
             alphaB, muY_basic_box, info = DomDecGPU.MiniBatchIterate(
                 muYL, posY, dxs_dys, eps,
-                muXB, posXB, alphaB, muY_basic_box, shapeY, partB,
+                muXB, posXB, alphaB, muY_basic_box, shapeYL, partB,
                 SinkhornError=params["sinkhorn_error"],
                 SinkhornErrorRel=params["sinkhorn_error_rel"],
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
