@@ -290,8 +290,8 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     ys_b = (y1_b, y2_b)
 
     # Perform a reduction to get a second dual for each basic cell
-    dxs = torch.tensor([get_dx(xi, xi.shape[0]) for xi in xs_b]).cpu()
-    dys = torch.tensor([get_dx(yj, yj.shape[0]) for yj in ys_b]).cpu()
+    dxs = torch.tensor(np.array([get_dx(xi, xi.shape[0]) for xi in xs_b]))
+    dys = torch.tensor(np.array([get_dx(yj, yj.shape[0]) for yj in ys_b]))
 
     offsetX, offsetY, offset_const = LogSinkhornGPU.compute_offsets_sinkhorn_grid(
         xs_b, ys_b, eps)
@@ -467,6 +467,10 @@ def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
     global_basic_minus = global_minus + basic_minus
     global_basic_plus = global_minus + basic_plus
 
+    # NOTE: profiling shows that most time in this function is spent in the 
+    # torch.where call below. However, when we try different implementations to
+    # obtain the same (i.e., an array `sum_indices` without -1's), we are not 
+    # able to remove the overhead. 
     # Remove -1's in sum_indices
     sum_indices_clean = sum_indices.clone().long()
     idx, idy = torch.where(sum_indices_clean < 0)
@@ -478,6 +482,15 @@ def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
     global_composite_plus = global_basic_plus[sum_indices_clean].amax(-1)
     composite_extent = global_composite_plus - global_composite_minus + 1
     # print("axis =", axis, "composite_extent =\n", composite_extent)
+
+
+    # print(sum_indices)
+    # print(sum_indices_clean)
+    # print(global_basic_minus)
+    # print(global_basic_plus)
+    # print(global_composite_minus)
+    # print(global_composite_plus)
+    # print(composite_extent)
 
     # Turn basic_minus and basic_extent into shape of sum_indices
     basic_minus = basic_minus[sum_indices_clean]
@@ -598,7 +611,6 @@ def refine_marginals_CUDA(muY_basic_box, basic_mass_coarse, basic_mass_fine,
 
     # Slide marginals to the corner
     muY_basic_box = slide_marginals_to_corner(muY_basic_box)
-    shapeY = muY_basic_box.global_shape
 
     # Y marginals
     # Get refinement weights for each Y point
@@ -671,6 +683,9 @@ def refine_marginals_CUDA(muY_basic_box, basic_mass_coarse, basic_mass_fine,
 
     # Compose new bounding box
     offsets = combine_offsets(global_left_refine, global_bottom_refine)
+    shapeY = nu_fine.shape
+
+    # print("shapeY", shapeY, "new offsets", offsets)
     muY_basic_refine_box = BoundingBox(muY_basic_refine, offsets, shapeY)
 
     return muY_basic_refine_box
@@ -905,8 +920,7 @@ def MiniBatchDomDecIteration_CUDA(
     muY_basic_batch = muY_basic_batch.view(B*C, w, h)
     # Copy left and bottom for beta
     offsets_comp = muYCell_box.offsets.reshape(B, 1, -1)
-    basic_expander = torch.ones((1, C, 1), **torch_options_int)
-    offsets_basic = (offsets_comp * basic_expander).reshape(B*C, -1)
+    offsets_basic = (offsets_comp.expand(-1, C, -1)).reshape(B*C, -1)
     # Get mask with real basic cells
     # Transform so that it can be index
     part_ravel = partition.ravel()
