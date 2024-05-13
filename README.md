@@ -32,7 +32,7 @@ Depending on your configuration, you may need to use the `--oversubscribe` flag.
 All the parameters that are set in the scripts can be overriden in the command line. For example, the following runs a larger problem (provided in `examples/data/`) with a larger tolerance:
 
 ```bash
-python example-sinkhorn-gpu.py --setup_fn1 data/f-000-1024.pickle --setup_fn2 data/f-000-1024.pickle --sinkhorn_error 0.001
+python example-sinkhorn-gpu.py --setup_fn1 data/f-000-1024.pickle --setup_fn2 data/f-001-1024.pickle --sinkhorn_error 0.001
 ```
 
 
