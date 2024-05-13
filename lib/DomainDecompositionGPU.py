@@ -106,8 +106,7 @@ def pad_replicate(a, padding):
         b = replicate(a.double()).int()
     else:
         b = replicate(a)
-    b = b.view(tuple(s + 2 for s in shape))
-    return b
+    return b.squeeze()
 
 
 def reformat_indices_2D(index, shapeY):
@@ -725,7 +724,6 @@ def get_current_Y_marginal(muY_basic_box, shapeY):
 
     return muY_sum.squeeze()
 
-
 def get_multiscale_layers(muX, shapeX):
     """
     Get multiscale layers of tensor muX. Currently only works if shape is 
@@ -754,7 +752,8 @@ def MiniBatchIterate(
     muXJ, posXJ, alphaJ,
     muY_basic_box, shapeY, partition,
     SinkhornError=1E-4, SinkhornErrorRel=False, SinkhornMaxIter=None,
-    SinkhornInnerIter=100, batchsize=np.inf, clustering=False, N_clusters="smart"
+    SinkhornInnerIter=100, batchsize=np.inf, clustering=False, N_clusters="smart",
+    balance = True
 ):
     """
     Perform a domain decomposition iteration on the composite cells given by 
@@ -776,8 +775,8 @@ def MiniBatchIterate(
     B = muY_basic_box.B
     if clustering:
         if N_clusters == "smart":
-            # N_clusters = int(min(10, max(1, np.sqrt(N_problems)/32))) # N = 1024 -> 4 clusters
-            N_clusters = int(min(10, max(1, np.sqrt(N_problems)/16))) # N = 1024 -> 8 clusters
+            N_clusters = int(min(10, max(1, np.sqrt(N_problems)/32))) # N = 1024 -> 4 clusters
+            # N_clusters = int(min(10, max(1, np.sqrt(N_problems)/16))) # N = 1024 -> 8 clusters
             print(f"N_clusters = {N_clusters}")
         else:
             N_clusters = min(N_clusters, N_problems)
@@ -810,7 +809,8 @@ def MiniBatchIterate(
                 SinkhornError, SinkhornErrorRel, muY, posY, dxs_dys, eps, shapeY,
                 muXJ[batch], posXJ_batch, alphaJ[batch],
                 muY_basic_box, partition[batch],
-                SinkhornMaxIter, SinkhornInnerIter
+                SinkhornMaxIter, SinkhornInnerIter, 
+                balance = balance
             )
         if info is None:
             info = info_batch

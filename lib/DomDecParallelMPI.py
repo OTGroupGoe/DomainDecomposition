@@ -124,7 +124,7 @@ def GetRefinedAtomicYMarginals_SparseY(comm,muYL,muYLOld,parentsYL,\
     # old atomic cells are 2x2 clustering of new atomic cells
     newCellChildren=DomDec.GetPartitionIndices2D(metaCellShape,2,0)
     # for each new atomic cell compute the old parent atomic cell
-    atomicCellParents=np.zeros((np.prod(metaCellShape),),dtype=np.int)
+    atomicCellParents=np.zeros((np.prod(metaCellShape),),dtype=np.int32)
     for i,children in enumerate(newCellChildren):
         atomicCellParents[children]=i
 
