@@ -99,7 +99,9 @@ params["clustering"] = True
 params["number_clusters"] = "smart"
 params["unbalanced"] = True
 #lam = 16*N**2
-lam = (N//8)**2
+lam = (4*N)**2
+# Number of balanced iterations after refinement
+Nbalanced = 0
 
 # Get multiscale torch hierarchy
 muX_final = torch.tensor(muX, **torch_options).view(shapeX)
@@ -365,8 +367,39 @@ while nLayer <= nLayerFinest:
     # print("muY_basic:", muY_basic.shape)
     # print("left\n", left)
     # print("bottom\n", bottom)
-
-
+     
+    # Balanced sinkhorn iterations to reorganize a bit the mass
+    # TODO: for this to work we have to pass it the current PXpi, which can be
+    # obtained from last collection of solvers in the refinement
+    eps = params["eps_list"][nLayer][1][0]
+    print("Balanced iterations", end = "")
+    for i in range(Nbalanced):
+        print(i, end = "")
+        alphaA, muY_basic_box, info = DomDecGPU.MiniBatchIterate(
+                muYL, posY, dxs_dys, eps,
+                muXA, posXA, alphaA, muY_basic_box, shapeYL, partA,
+                SinkhornError=params["sinkhorn_error"],
+                SinkhornErrorRel=params["sinkhorn_error_rel"],
+                SinkhornMaxIter=100, # TODO: change this, just meant to give approx answer
+                SinkhornInnerIter=params["sinkhorn_inner_iter"],
+                batchsize=params["batchsize"],
+                clustering = params["clustering"],
+                N_clusters = params["number_clusters"]
+            )
+        print([s.Niter for s in info["solver"]])
+        alphaB, muY_basic_box, info = DomDecGPU.MiniBatchIterate(
+                muYL, posY, dxs_dys, eps,
+                muXB, posXB, alphaB, muY_basic_box, shapeYL, partB,
+                SinkhornError=params["sinkhorn_error"],
+                SinkhornErrorRel=params["sinkhorn_error_rel"],
+                SinkhornMaxIter=100,
+                SinkhornInnerIter=params["sinkhorn_inner_iter"],
+                batchsize=params["batchsize"],
+                clustering = params["clustering"],
+                N_clusters = params["number_clusters"]
+            )
+        print([s.Niter for s in info["solver"]])
+    print("")
 
     # run algorithm at layer
     for nEps, (eps, nIterationsMax) in enumerate(params["eps_list"][nLayer]):

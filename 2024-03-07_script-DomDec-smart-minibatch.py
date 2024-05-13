@@ -79,6 +79,8 @@ params["aux_evaluate_scores"] = True  # TODO: allow evaluation
 params["sinkhorn_max_iter"] = 10000
 params["sinkhorn_inner_iter"] = 10
 params["sinkhorn_error"] = 1e-4
+params["eps_layerSteps"] = 2
+
 
 
 params["aux_dump_after_each_eps"] = False
@@ -96,6 +98,7 @@ cellsize = params["domdec_cellsize"]
 params["batchsize"] = np.inf
 params["clustering"] = True
 params["number_clusters"] = "smart"
+params["balance"] = False
 
 
 # Get multiscale torch hierarchy
@@ -154,6 +157,8 @@ evaluationData["timeList_global"] = []
 
 evaluationData["sparsity_muYAtomicEntries"] = []
 evaluationData["shape_muYAtomicEntries"] = []
+
+evaluationData["sinkhorn_iters"] = []
 
 globalTime1 = time.perf_counter()
 
@@ -386,7 +391,8 @@ while nLayer <= nLayerFinest:
                 SinkhornInnerIter=params["sinkhorn_inner_iter"],
                 batchsize=params["batchsize"],
                 clustering = params["clustering"],
-                N_clusters = params["number_clusters"]
+                N_clusters = params["number_clusters"], 
+                balance = params["balance"]
             )
             # solverA = info["solver"]
 
@@ -401,17 +407,17 @@ while nLayer <= nLayerFinest:
             Niter_per_batch = [solverB.Niter for solverB in info["solver"]]
             print(
                 f"Niter = {Niter_per_batch}, bounding box = {info['bounding_box']}")
-
             ################################
             # count total entries in muYAtomicList:
-            bbox_size = tuple(muY_basic.shape[1:])
-            nrEntries = int(torch.sum(muY_basic > 0).item())
-            shape_muY_basic = int(np.prod(muY_basic.shape))
-            print(f"basic bbox: {bbox_size}")
+            nrEntries = int(torch.sum(muY_basic_box.data > 0).item())
+            shape_muY_basic = int(np.prod(muY_basic_box.data.shape))
+            print("basic box", muY_basic_box.data.shape)
             evaluationData["sparsity_muYAtomicEntries"].append(
                 [nLayer, nEps, nIterations, 0, nrEntries])
             evaluationData["shape_muYAtomicEntries"].append(
                 [nLayer, nEps, nIterations, 0, shape_muY_basic])
+            evaluationData["sinkhorn_iters"].append(
+                [nLayer, nEps, nIterations, eps, sum(Niter_per_batch)])
             
             ################################
             # dump after each iteration
@@ -448,7 +454,8 @@ while nLayer <= nLayerFinest:
                 SinkhornInnerIter=params["sinkhorn_inner_iter"],
                 batchsize=params["batchsize"],
                 clustering = params["clustering"],
-                N_clusters = params["number_clusters"]
+                N_clusters = params["number_clusters"], 
+                balance = params["balance"]
             )
             time2 = time.perf_counter()
             evaluationData["time_iterate"] += time2-time1
@@ -459,19 +466,19 @@ while nLayer <= nLayerFinest:
             Niter_per_batch = [solverB.Niter for solverB in info["solver"]]
             print(
                 f"Niter = {Niter_per_batch}, bounding box = {info['bounding_box']}")
-
             ################################
 
             ################################
             # count total entries in muYAtomicList:
-            bbox_size = tuple(muY_basic.shape[1:])
-            nrEntries = int(torch.sum(muY_basic > 0).item())
-            shape_muY_basic = int(np.prod(muY_basic.shape))
-            print(f"basic bbox: {bbox_size}")
+            nrEntries = int(torch.sum(muY_basic_box.data > 0).item())
+            shape_muY_basic = int(np.prod(muY_basic_box.data.shape))
+            print("basic box", muY_basic_box.data.shape)
             evaluationData["sparsity_muYAtomicEntries"].append(
                 [nLayer, nEps, nIterations, 1, nrEntries])
             evaluationData["shape_muYAtomicEntries"].append(
                 [nLayer, nEps, nIterations, 1, shape_muY_basic])
+            evaluationData["sinkhorn_iters"].append(
+                [nLayer, nEps, nIterations, eps, sum(Niter_per_batch)])
 
 
             #################################
