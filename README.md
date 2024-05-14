@@ -1,6 +1,6 @@
 # Domain decomposition for optimal transport
 
-This repository provides both MPI and GPU mulsticale implementations of the domain decomposition algorithm for entropic optimal transport, following respectively [[1]](#1) and [[2]](#2). A comparative of the performance of both implementations against a multiscale GPU Sinkhorn implementation is shown below. 
+This repository provides both MPI and GPU mulsticale implementations of the domain decomposition algorithm for entropic optimal transport, following respectively [[1]](#1) and [[2]](#2). A comparative of the performance of both implementations against a multiscale GPU Sinkhorn implementation for transport between two $N\times N$ images is shown below. 
 
 ![Benchmark of different algorithms](fig/benchmark-domdec-sinkhorn.png)
 
