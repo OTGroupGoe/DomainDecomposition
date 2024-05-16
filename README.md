@@ -42,4 +42,4 @@ python example-sinkhorn-gpu.py --setup_fn1 data/f-000-1024.pickle --setup_fn2 da
 Mauro Bonafini and Bernhard Schmitzer. *Domain decomposition for entropy  regularized optimal transport*. Numerische Mathematik, 149:819–870, 2021.
 
 <a id="2">[2]</a>
-Ismael Medina and Bernhard Schmitzer. *Flow updates for more efficient domain decomposition in entropic optimal transport*. arXiv:**TODO**, 2024.
+Ismael Medina and Bernhard Schmitzer. *Flow updates for decomposition of entropic optimal transport*. arXiv:2405.09400, 2024.
