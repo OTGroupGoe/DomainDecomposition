@@ -108,6 +108,17 @@ def pad_replicate(a, padding):
         b = replicate(a)
     return b.squeeze()
 
+def pad_extrapolate(a, padding):
+    # Pad first with zeros
+    assert len(a.shape) == 2, "not implemented in higher dimension"
+    b = pad_tensor(a, padding)
+    # Then fill the rim
+    for i in range(padding):
+        b[padding-i-1,:] = 2*b[padding-i,:] - b[padding-i+1,:]
+        b[-padding+i,:] = 2*b[-padding+i-1,:] - b[-padding+i-2,:]
+        b[:,padding-i-1] = 2*b[:,padding-i] - b[:,padding-i+1]
+        b[:,-padding+i] = 2*b[:,-padding+i-1] - b[:,-padding+i-2]
+    return b
 
 def reformat_indices_2D(index, shapeY):
     """
@@ -247,7 +258,7 @@ def get_dx(x, B):
             "grid points must be equispaced"
         return dx.item()
 
-def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
+def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps, s = None):
     """
     Get cell marginals directly using duals and logsumexp reductions, 
     without building the transport plans. 
@@ -259,25 +270,28 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
     Ns = LogSinkhornGPU.geom_dims(nuref)
     B = LogSinkhornGPU.batch_dim(muref)
 
-    # Deduce cellsize
-    s = Ms[0]//2
+    if s is None:
+        # Deduce cellsize
+        s = Ms[0]//2
+    # Get number of basic cells
+    b1, b2 = Ms[0]//s, Ms[1]//s
     dim = len(xs)
     assert dim == 2, "Not implemented for dimension rather than 2"
-    n_basic = 2**dim  # number of basic cells per composite cell, depends on dim
+    n_basic = b1*b2  # number of basic cells
 
     # Perform permutations and reshapes in X data to turn them
     # into B*n_cells problems of size (s,s)
-    alpha_b = alpha.view(-1, 2, s, 2, s) \
+    alpha_b = alpha.view(-1, b1, s, b2, s) \
         .permute((0, 1, 3, 2, 4)).reshape(-1, s, s)
-    mu_b = muref.view(-1, 2, s, 2, s) \
+    mu_b = muref.view(-1, b1, s, b2, s) \
         .permute((0, 1, 3, 2, 4)).reshape(-1, s, s)
     new_Ms = (s, s)
     logmu_b = LogSinkhornGPU.log_dens(mu_b)
 
     x1, x2 = xs
-    x1_b = torch.repeat_interleave(x1.view(-1, 2, s, 1), 2, dim=3)
+    x1_b = torch.repeat_interleave(x1.view(-1, b1, s, 1), b2, dim=3)
     x1_b = x1_b.permute((0, 1, 3, 2)).reshape(-1, s)
-    x2_b = torch.repeat_interleave(x2.view(-1, 1, 2, s), 2, dim=1)
+    x2_b = torch.repeat_interleave(x2.view(-1, 1, b2, s), b1, dim=1)
     x2_b = x2_b.reshape(-1, s)
     xs_b = (x1_b, x2_b)
 
@@ -296,20 +310,25 @@ def get_cell_marginals(muref, nuref, alpha, beta, xs, ys, eps):
         xs_b, ys_b, eps)
     h = alpha_b / eps + logmu_b + offsetX
 
-    beta_hat = - eps * (
-        LogSinkhornGPU.softmin_cuda_image(h, Ns, new_Ms, eps, dys, dxs)
-        + offsetY + offset_const
-    )
+    # beta_hat = - eps * (
+    #     LogSinkhornGPU.softmin_cuda_image(h, Ns, new_Ms, eps, dys, dxs)
+    #     + offsetY + offset_const
+    # )
 
-    # Turn to double to improve accuracy
-    # beta = beta.double()
-    # beta_hat = beta_hat.double()
-    # nuref = nuref.double()
+    # # Build cell marginals
+    # muY_basic = nuref[:, None] * torch.exp(
+    #     (beta[:, None] - beta_hat.view(-1, n_basic, *Ns))/eps
+    # )
+    # Memory friendly implementation
 
-    # Build cell marginals
-    muY_basic = nuref[:, None] * torch.exp(
-        (beta[:, None] - beta_hat.view(-1, n_basic, *Ns))/eps
-    )
+    beta_hat = LogSinkhornGPU.softmin_cuda_image(h, Ns, new_Ms, eps, dys, dxs)
+    beta_hat += (offsetY + offset_const)
+    beta_hat = beta_hat.view(-1, n_basic, *Ns)
+    beta_hat += beta[:,None]/eps 
+    muY_basic = beta_hat
+    torch.exp(beta_hat, out = muY_basic)
+    muY_basic *= nuref[:,None]
+
     return muY_basic
 
 def BatchSolveOnCell_CUDA(
@@ -428,7 +447,7 @@ def CUDA_balance(muXCell, muY_basic):
 # transform basic cell utilities
 ###############################################
 
-def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
+def get_axis_bounds(muY_basic, global_minus, axis, sum_indices):
     """
     Get relative extents of the bounding box that would result from combining
     the basic cells in muY_basic according to sum_indices.
@@ -437,8 +456,6 @@ def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
     ---------
     muY_basic : torch.Tensor
         Data
-    mask : torch.Tensor(Bool)
-        Same shape as muY_basic, specifies where the data is non-zero
     global_minus : torch.Tensor(int)
         offsets along axis `axis`
     axis : int
@@ -451,16 +468,14 @@ def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
     n = geom_shape[axis]
     # Put in the position of every point with mass its index along axis
     index_axis = torch.arange(n, device=muY_basic.device, dtype=torch.int32)
-    new_shape_index = [
-        n if i == 1 + axis else 1 for i in range(len(muY_basic.shape))
-    ]
-    index_axis = index_axis.view(new_shape_index)
-    mask_index = mask*index_axis
+    axis_sum = 2 if axis == 0 else 1 # TODO: generalize for higher dim
+    mask = muY_basic.sum(axis_sum) > 0
+    mask_index = mask * index_axis.view(1, -1) # mask_index has shape (B, -1)
     # Get positive extreme
-    basic_plus = mask_index.view(B, -1).amax(-1)
+    basic_plus = mask_index.amax(-1)
     # Turn zeros to upper bound so that we can get the minimum
     mask_index[~mask] = n
-    basic_minus = mask_index.view(B, -1).amin(-1)
+    basic_minus = mask_index.amin(-1)
     basic_extent = basic_plus - basic_minus + 1
     # Add global offsets
     global_basic_minus = global_minus + basic_minus
@@ -480,16 +495,6 @@ def get_axis_bounds(muY_basic, mask, global_minus, axis, sum_indices):
     global_composite_minus = global_basic_minus[sum_indices_clean].amin(-1)
     global_composite_plus = global_basic_plus[sum_indices_clean].amax(-1)
     composite_extent = global_composite_plus - global_composite_minus + 1
-    # print("axis =", axis, "composite_extent =\n", composite_extent)
-
-
-    # print(sum_indices)
-    # print(sum_indices_clean)
-    # print(global_basic_minus)
-    # print(global_basic_plus)
-    # print(global_composite_minus)
-    # print(global_composite_plus)
-    # print(composite_extent)
 
     # Turn basic_minus and basic_extent into shape of sum_indices
     basic_minus = basic_minus[sum_indices_clean]
@@ -512,7 +517,6 @@ def combine_cells(muY_basic_box, sum_indices, weights=1):
     """
     muY_basic = muY_basic_box.data
     shapeY = muY_basic_box.global_shape
-    mask = muY_basic > 0.0
     global_left = muY_basic_box.offsets[:,0]
     global_bottom = muY_basic_box.offsets[:,1]
 
@@ -523,21 +527,43 @@ def combine_cells(muY_basic_box, sum_indices, weights=1):
     # Get bounding box parameters
     relative_basic_left, basic_left, basic_width, \
         global_composite_left, composite_width = \
-        get_axis_bounds(muY_basic, mask, global_left, 0, sum_indices)
+        get_axis_bounds(muY_basic, global_left, 0, sum_indices)
 
     relative_basic_bottom, basic_bottom, basic_height, \
         global_composite_bottom, composite_height = \
-        get_axis_bounds(muY_basic, mask, global_bottom, 1, sum_indices)
+        get_axis_bounds(muY_basic, global_bottom, 1, sum_indices)
 
-    Nu_comp = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
-        muY_basic, composite_width, composite_height,
-        weights, sum_indices,
-        relative_basic_left, basic_left, basic_width,
-        relative_basic_bottom, basic_bottom, basic_height
-    )
+    # Previous version
+    # Nu_comp = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
+    #     muY_basic, composite_width, composite_height,
+    #     weights, sum_indices,
+    #     relative_basic_left, basic_left, basic_width,
+    #     relative_basic_bottom, basic_bottom, basic_height
+    # )
+
+    # offsets_comp = combine_offsets(
+    #     global_composite_left, global_composite_bottom)
+    # muYCell_box = BoundingBox(Nu_comp, offsets_comp, shapeY)
+
+    # New version, output side
 
     offsets_comp = combine_offsets(
         global_composite_left, global_composite_bottom)
+    
+    Nu_comp = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D_OutputSide(
+        muY_basic, composite_width, composite_height,
+        weights, sum_indices,
+        offsets_comp, muY_basic_box.offsets
+    )
+    # Nu_comp = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
+    #     muY_basic, composite_width, composite_height,
+    #     weights, sum_indices,
+    #     relative_basic_left, basic_left, basic_width,
+    #     relative_basic_bottom, basic_bottom, basic_height
+    # )
+
+    # print(Nu_comp.shape, shapeY, offsets_comp)
+
     muYCell_box = BoundingBox(Nu_comp, offsets_comp, shapeY)
 
     return muYCell_box
@@ -572,14 +598,14 @@ def crop_measure_to_box(rho_composite_box, rho):
     torch_options_int = dict(device=rho_composite.device, dtype=torch.int32)
 
     B, w, h = rho_composite.shape
-    mask = rho_composite > 0
+    # mask = rho_composite > 0
     sum_indices_comp = torch.arange(B, **torch_options_int).view(-1, 1)
 
     _, relative_left, comp_width, _, _ = \
-        get_axis_bounds(rho_composite, mask, global_left, 0, sum_indices_comp)
+        get_axis_bounds(rho_composite, global_left, 0, sum_indices_comp)
 
     _, relative_bottom, comp_height, _, _ = \
-        get_axis_bounds(rho_composite, mask,
+        get_axis_bounds(rho_composite,
                         global_bottom, 1, sum_indices_comp)
 
     # Reshape indices for AddWithOffsets
@@ -624,18 +650,18 @@ def refine_marginals_CUDA(muY_basic_box, basic_mass_coarse, basic_mass_fine,
 
     # Get axes bounds
     muY_basic = muY_basic_box.data
-    mask = muY_basic > 0
+    # mask = muY_basic > 0
     global_left = muY_basic_box.offsets[:,0]
     global_bottom = muY_basic_box.offsets[:,1]
     sum_indices_basic = torch.arange(B, **torch_options_int).view(-1, 1)
 
     relative_basic_left, basic_left, basic_width, \
         global_composite_left, w = \
-        get_axis_bounds(muY_basic, mask, global_left, 0, sum_indices_basic)
+        get_axis_bounds(muY_basic, global_left, 0, sum_indices_basic)
 
     relative_basic_bottom, basic_bottom, basic_height, \
         global_composite_bottom, h = \
-        get_axis_bounds(muY_basic, mask, global_bottom, 1, sum_indices_basic)
+        get_axis_bounds(muY_basic, global_bottom, 1, sum_indices_basic)
 
     # Indices for refinement mask
 
@@ -689,7 +715,7 @@ def refine_marginals_CUDA(muY_basic_box, basic_mass_coarse, basic_mass_fine,
 
     return muY_basic_refine_box
 
-def get_current_Y_marginal(muY_basic_box, shapeY):
+def get_current_Y_marginal(muY_basic_box, shapeY, batchshape = None):
     """
     Aggregate cell Y marginals to obtain actual global Y marginal.
     """
@@ -699,27 +725,57 @@ def get_current_Y_marginal(muY_basic_box, shapeY):
     torch_options = muY_basic_box.options
     sum_indices_basic = torch.arange(B, **torch_options_int).view(-1, 1)
 
-    global_left = muY_basic_box.offsets[:,0]
-    global_bottom = muY_basic_box.offsets[:,1]
-
-    # Get axis bounds
-    mask = muY_basic > 0
-    _, basic_left, basic_width, global_left, _ = \
-        get_axis_bounds(muY_basic, mask, global_left, 0, sum_indices_basic)
-
-    _, basic_bottom, basic_height, global_bottom, _ = \
-        get_axis_bounds(muY_basic, mask, global_bottom, 1, sum_indices_basic)
 
     sum_indices_global = torch.arange(B, **torch_options_int).view(1, -1)
     weights = torch.ones((1, B), **torch_options)
 
-    muY_sum = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
-        muY_basic, *shapeY,
-        weights, sum_indices_global,
-        global_left.view(1, -1), basic_left.view(1, -
-                                                 1), basic_width.view(1, -1),
-        global_bottom.view(1, -1), basic_bottom.view(1, -
-                                                     1), basic_height.view(1, -1)
+    # Old AddWithOffsetsCuda
+    # global_left = muY_basic_box.offsets[:,0]
+    # global_bottom = muY_basic_box.offsets[:,1]
+
+    # # Get axis bounds
+    # mask = muY_basic > 0
+    # _, basic_left, basic_width, global_left, _ = \
+    #     get_axis_bounds(muY_basic, mask, global_left, 0, sum_indices_basic)
+
+    # _, basic_bottom, basic_height, global_bottom, _ = \
+    #     get_axis_bounds(muY_basic, mask, global_bottom, 1, sum_indices_basic)
+    # muY_sum = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D(
+    #     muY_basic, *shapeY,
+    #     weights, sum_indices_global,
+    #     global_left.view(1, -1), basic_left.view(1, -
+    #                                              1), basic_width.view(1, -1),
+    #     global_bottom.view(1, -1), basic_bottom.view(1, -
+    #                                                  1), basic_height.view(1, -1)
+    # )
+
+    # offsets_comp = torch.zeros((1, 2), **torch_options_int)
+    # muY_sum = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D_OutputSide(
+    #     muY_basic, *shapeY, weights, sum_indices_global, 
+    #     offsets_comp, muY_basic_box.offsets
+    # )
+
+    # Try multiscale approach
+    s = 16
+    if batchshape is None: 
+        b1 = b2 = int(np.sqrt(B)) // s
+    else: 
+        b1, b2 = batchshape[0]//s, batchshape[1]//s
+    if b1 == 0 or b2 == 0: # skip coarse step
+        s = 1
+        muY_box_coarse = muY_basic_box
+    else:
+        # Combine fine to coarse 8x8 clusters
+        sum_indices_coarse = torch.arange(B, **torch_options_int).reshape(b1, s, b2, s) \
+                    .permute(0, 2, 1, 3).reshape(-1, s*s)
+        muY_box_coarse = combine_cells(muY_basic_box, sum_indices_coarse)
+    # Combine coarse to global
+    sum_indices_global = torch.arange(B//(s*s), **torch_options_int).view(1, -1)
+    weights = torch.ones((1, B//(s*s)), **torch_options)
+    offsets_comp = torch.zeros((1, 2), **torch_options_int)
+    muY_sum = LogSinkhornGPU.backend.AddWithOffsetsCUDA_2D_OutputSide(
+        muY_box_coarse.data, *shapeY, weights, sum_indices_global, 
+        offsets_comp, muY_box_coarse.offsets
     )
 
     return muY_sum.squeeze()
@@ -958,6 +1014,239 @@ def basic_to_composite_minibatch_CUDA_2D(muY_basic_box, partition):
     return combine_cells(muY_basic_box, sum_indices, weights)
 
 
+
+#######################
+# Global balance
+# For warm-starting with Sinkhorn solution without compromising marginal
+#######################
+from ortools.graph.python import min_cost_flow
+
+def get_edges_2D(basic_shape):
+    sb1, sb2 = basic_shape
+    indices = np.arange(sb1*sb2).reshape(sb1, sb2)
+    bottom = indices[:,:-1].reshape(-1,1)
+    top = indices[:,1:].reshape(-1,1)
+    left = indices[:-1,:].reshape(-1,1)
+    right = indices[1:,:].reshape(-1,1)
+    edges = np.block([
+        [bottom, top],
+        [left, right],
+        [top, bottom],
+        [right, left]
+    ])
+    return edges
+
+def solve_grid_flow_problem(size, supply):
+    n1, n2 = size
+    N = n1*n2
+    
+    nodes = np.arange(0,N).reshape(n1, n2)
+
+    # capacity edges
+    cap_start = nodes.ravel()
+    cap_end = nodes.ravel() + N
+
+    # up edges
+    up_start = nodes[:,:-1].ravel() + N
+    up_end = nodes[:,1:].ravel()
+
+    # right edges
+    right_start = nodes[:-1,:].ravel() + N
+    right_end = nodes[1:,:].ravel()
+
+    # down edges
+    down_start = nodes[:,1:].ravel() + N
+    down_end = nodes[:,:-1].ravel()
+
+
+    # left edges
+    left_start = nodes[1:,:].ravel() + N
+    left_end = nodes[:-1,:].ravel()
+
+    # join them
+    start_nodes = np.hstack((cap_start, up_start, right_start, down_start, left_start))
+    end_nodes = np.hstack((cap_end, up_end, right_end, down_end, left_end))
+    
+    # turn supply to ints
+    res = 1000 / np.max(np.abs(supply))
+    supply = (supply*res).astype(np.int64) # supply is now normalized from 0 to 1000
+    # Fix numerical error so that it is a balanced problem
+    inbalance = supply.sum()
+    sign = (inbalance // abs(inbalance))
+    if inbalance > len(supply):
+        supply -= sign * (abs(inbalance) // len(supply))
+    supply[:abs(inbalance)] -=sign
+
+
+    # capacities
+    # TODO: do we need to turn to ints?
+    res_cap = 4*1000*N # resolution for capacities
+    cap = np.full_like(start_nodes,res_cap, dtype = np.int64)
+    
+    # cost
+    cost = np.ones_like(start_nodes)
+    # build solver
+    solver_flow = min_cost_flow.SimpleMinCostFlow()
+    
+    # Add arcs, capacities and costs in bulk using numpy.
+    all_arcs = solver_flow.add_arcs_with_capacity_and_unit_cost(
+        start_nodes, end_nodes, cap, cost)
+    
+    solver_flow.set_nodes_supplies(nodes.ravel(), supply)
+    
+    # solve problem
+    status = solver_flow.solve()
+    flows = solver_flow.flows(all_arcs)
+    nodes_engaged = flows[:N]
+    w = flows[N:].astype(np.float64) / res
+    # w = flows.astype(np.float64) * (max_cap / res_cap)
+    return w
+
+def implement_flow_CUDA(Nu_basic_box, flow, basic_mass, basic_shape, PXpi_basic = None):
+    # TODO: generalize for 3D
+    b1, b2 = basic_shape
+    B = np.prod(basic_shape)
+    if PXpi_basic is None:
+        PXpi_basic = basic_mass
+
+    # If there's no flow, abort
+    dim = len(basic_shape)
+    # Each basic cell has at most 2*dim + 1 incoming edges: the loop and two 
+    # from every direction
+    Nu_basic = Nu_basic_box.data
+    torch_options = dict(dtype=Nu_basic.dtype, device=Nu_basic.device)
+    torch_options_int = dict(dtype=torch.int32, device=Nu_basic.device)
+    basic_index = torch.arange(B, **torch_options_int)
+    sum_indices = torch.zeros(B, 2*dim+1, **torch_options_int)
+    weights = torch.zeros(B, 2*dim+1, **torch_options)
+    idx = torch.div(basic_index, b2, rounding_mode = "trunc")
+    idy = (basic_index % b2)
+
+    flow = torch.tensor(flow, **torch_options)
+
+    if flow[B:].sum() == 0:
+        return Nu_basic_box
+    else: 
+        # Capacity edges
+        sum_indices[:,0] = basic_index 
+        weights[:,0] = basic_mass.ravel() 
+        # At the end we will remove the outgoing mass
+
+        cnt_w = 0 # Counter for weights
+        # Edges going up: incoming from below
+        sum_indices[:,1] = idx*b2 + (idy-1)
+        # Cells in the bottom row have no such incoming edge
+        remove_edge = idy == 0
+        sum_indices[remove_edge, 1] = -1
+        n_edges = b1*(b2-1)
+        weights[~remove_edge, 1] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Edges going right
+        sum_indices[:,2] = (idx-1)*b2 + idy
+        remove_edge = idx == 0
+        sum_indices[remove_edge, 2] = -1
+        n_edges = (b1-1)*b2
+        weights[~remove_edge,2] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Edges going down
+        sum_indices[:,3] = idx*b2 + (idy+1)
+        remove_edge = idy == b2-1
+        n_edges = b1*(b2-1)
+        sum_indices[remove_edge, 3] = -1
+        weights[~remove_edge,3] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Edges going left
+        sum_indices[:,4] = (idx+1)*b2 + idy
+        remove_edge = idx == b1-1
+        sum_indices[remove_edge, 4] = -1
+        n_edges = (b1-1)*b2
+        weights[~remove_edge,4] = flow[cnt_w:cnt_w+n_edges]
+        cnt_w = cnt_w + n_edges
+
+        # Fill weights in 0-th column
+
+        weights[:,0] -= torch.sum(weights[:,1:], dim = 1)
+
+        # TODO: is basic_mass or basic_PXpi
+        Nu_basic_box = BoundingBox(Nu_basic_box.data  / PXpi_basic.view(-1, 1, 1), 
+                                   Nu_basic_box.offsets, Nu_basic_box.global_shape)
+        Nu_basic_box = combine_cells(Nu_basic_box, sum_indices, weights)
+        return Nu_basic_box
+
+def global_balance_CUDA(Nu_basic_box, basic_mass, basic_shape):
+    # Get induced edge costs
+    PXpi_basic = Nu_basic_box.data.sum((1,2))
+    mass_delta = basic_mass - PXpi_basic
+
+    # Solve min cost flow problem
+    flow = solve_grid_flow_problem(basic_shape, mass_delta.ravel().cpu().numpy())
+    # Implement flow
+    Nu_basic_box = implement_flow_CUDA(Nu_basic_box, flow, basic_mass, basic_shape, PXpi_basic = PXpi_basic)
+    return flow, Nu_basic_box
+
+def sinkhorn_to_domdec(solver, s, balance = True):
+    """
+    Compute domdec cell marginals, alphas and actual X marginals from a 
+    global solver object and cellsize `s`
+    """
+    xs, ys = solver.xs, solver.ys
+    eps = solver.eps
+    M1, M2 = LogSinkhornGPU.geom_dims(solver.muref)
+    N1, N2 = LogSinkhornGPU.geom_dims(solver.nuref)
+    b1, b2 = M1//s, M2//s
+    muY_basic = get_cell_marginals(solver.muref, solver.nuref, 
+                                        solver.alpha, solver.beta,
+                                        xs, ys, eps, s = s).squeeze()
+    
+    # Truncate
+    muY_basic[muY_basic <= 1e-15] = 0.0
+    PYpi = solver.get_actual_Y_marginal().squeeze()  # == nu for balanced domdec 
+    
+    # Get current X marginal by averaging duals
+    alpha_new = solver.get_new_alpha()
+    solver.alpha = 0.5*solver.alpha + 0.5*alpha_new
+    PXpi = solver.get_actual_X_marginal().squeeze()  # == mu for balanced domdec 
+    # Renormalize by total muY_basic mass
+    PXpi *= PYpi.sum() / PXpi.sum()
+    solver.update_beta()
+
+    # Compute current cell-wise score
+    # 1. Transport-entropic score
+    alpha_score = (solver.alpha * PXpi).view(b1, s, b2, s).sum((1,3)).ravel()
+    beta_score = (solver.beta * muY_basic).sum((1,2))
+    transport_score = alpha_score + beta_score
+    # 2. KL penalties
+    margX_score = solver.lam * LogSinkhornGPU.KL(
+        PXpi.view(b1, s, b2, s), solver.mu.view(b1, s, b2, s), axis = (1,3)).ravel()
+    margY_score = solver.lam * LogSinkhornGPU.KL(PYpi, solver.nu)
+    # Wrap in tuple
+    basic_cell_score = (transport_score, margX_score, margY_score)
+
+    # Compute atomic mass
+
+    atomic_mass = PXpi.view(b1, s, b2, s).sum((1,3)).view(1, b1*b2)
+    
+    # Initialize bounding box object
+    offsets = torch.zeros((len(muY_basic), 2), 
+                      dtype = torch.int32, device = "cuda")
+    muY_basic_box = BoundingBox(muY_basic, offsets, (N1, N2))
+
+    # Compress
+    muY_basic_box = slide_marginals_to_corner(muY_basic_box)
+
+    # Balance to remove global X error. Specially necessary for unbalanced 
+    # domdec with big lambda
+    if balance:
+        muY_basic_box.data = CUDA_balance(PXpi[None, :, :], muY_basic_box.data)
+        # _, muY_basic_box = global_balance_CUDA(muY_basic_box, atomic_mass.ravel(), (b1, b2))
+
+        
+
+    return muY_basic_box, PXpi, atomic_mass, solver.alpha.squeeze(), basic_cell_score
+
 ########################################
 # Clustering problems based on bbox
 #########################################
@@ -998,7 +1287,7 @@ def KMeans(x, K=10, Niter=20, verbose=True):
 
 # TODO: make all of this more modular. This basically copies get_axis_bounds
 # and takes just what is needed
-def get_axis_composite_extent(muY_basic, mask, global_minus, axis, sum_indices):
+def get_axis_composite_extent(muY_basic, global_minus, axis, sum_indices):
     """
     Computes the size of the composite extent along a given axis.
     """
@@ -1007,16 +1296,14 @@ def get_axis_composite_extent(muY_basic, mask, global_minus, axis, sum_indices):
     n = geom_shape[axis]
     # Put in the position of every point with mass its index along axis
     index_axis = torch.arange(n, device=muY_basic.device, dtype=torch.int32)
-    new_shape_index = [
-        n if i == 1 + axis else 1 for i in range(len(muY_basic.shape))
-    ]
-    index_axis = index_axis.view(new_shape_index)
-    mask_index = mask*index_axis
+    axis_sum = 2 if axis == 0 else 1 # TODO: generalize for higher dim
+    mask = muY_basic.sum(axis_sum) > 0
+    mask_index = mask * index_axis.view(1, -1) # mask_index has shape (B, -1)
     # Get positive extreme
-    basic_plus = mask_index.view(B, -1).amax(-1)
+    basic_plus = mask_index.amax(-1)
     # Turn zeros to upper bound so that we can get the minimum
     mask_index[~mask] = n
-    basic_minus = mask_index.view(B, -1).amin(-1)
+    basic_minus = mask_index.amin(-1)
     # Add global offsets
     global_basic_minus = global_minus + basic_minus
     global_basic_plus = global_minus + basic_plus
@@ -1055,11 +1342,11 @@ def get_minibatches_clustering(muY_basic_box,
     muY_basic = muY_basic_box.data
     global_left = muY_basic_box.offsets[:,0]
     global_bottom = muY_basic_box.offsets[:,1]
-    mask = muY_basic > 0.0
+    # mask = muY_basic > 0.0
 
-    x = get_axis_composite_extent(muY_basic, mask, global_left, 0, sum_indices)
+    x = get_axis_composite_extent(muY_basic, global_left, 0, sum_indices)
 
-    y = get_axis_composite_extent(muY_basic, mask, global_bottom,
+    y = get_axis_composite_extent(muY_basic, global_bottom,
                                   1, sum_indices)
 
     z = torch.concat((x.view(-1, 1), y.view(-1, 1)), dim=1).double()
