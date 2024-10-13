@@ -686,15 +686,16 @@ def refine_marginals_CUDA(muY_basic_box, basic_mass_coarse, basic_mass_fine,
     )
 
     # Refine nu basic by multiplying it with the refinement weights
-    muY_basic_refine_Y = refinement_weights_Y_box.view(
-        B, C, w, h) * muY_basic.view(B, 1, w, h)
+    muY_basic_refine_Y = refinement_weights_Y_box.view(B, C, w, h) 
+    muY_basic_refine_Y *= muY_basic.view(B, 1, w, h)
     muY_basic_refine_Y = muY_basic_refine_Y.view(
         B, 2, 2, w, h).permute(0, 3, 1, 4, 2).reshape(B, 2*w, 2*h)
-
+    
     # Refine muX
     b1, b2 = basic_mass_coarse.shape
     refinement_weights_X = basic_mass_fine.view(b1, 2, b2, 2) \
         / basic_mass_coarse.view(b1, 1, b2, 1)
+    print(muY_basic_refine_Y.shape, refinement_weights_X.shape)
     muY_basic_refine = muY_basic_refine_Y.view(b1, 1, b2, 1, 2*w, 2*h) \
         * refinement_weights_X.view(b1, 2, b2, 2, 1, 1)
     muY_basic_refine = muY_basic_refine.view(4*B, 2*w, 2*h)
@@ -756,7 +757,7 @@ def get_current_Y_marginal(muY_basic_box, shapeY, batchshape = None):
     # )
 
     # Try multiscale approach
-    s = 16
+    s = 8
     if batchshape is None: 
         b1 = b2 = int(np.sqrt(B)) // s
     else: 

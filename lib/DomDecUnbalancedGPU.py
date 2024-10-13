@@ -67,7 +67,7 @@ def MiniBatchIterateUnbalanced(
     muY_basic_box, shapeY, partition, current_basic_score, 
     SinkhornError=1E-4, SinkhornErrorRel=True, SinkhornMaxIter=None,
     SinkhornInnerIter=100, batchsize=np.inf, clustering=False, 
-    N_clusters="smart", **kwargs
+    N_clusters="smart", safeguard_threshold = 0.005, **kwargs
 ):
     """
     Perform a domain decomposition iteration on the composite cells given by 
@@ -87,7 +87,7 @@ def MiniBatchIterateUnbalanced(
     t0 = time.perf_counter()
     N_problems = partition.shape[0]
     B = muY_basic_box.B
-    # TODO: this only works for square problems
+    # NOTE: this only works for square problems
     nc1 = nc2 = int(np.sqrt(N_problems))
     comp_ind = torch.arange(nc1*nc2, device = "cuda", dtype = torch.int64
                             ).reshape(nc1, nc2)
@@ -117,44 +117,33 @@ def MiniBatchIterateUnbalanced(
 
     # # Compute current global Y marginal
     PYpi = get_current_Y_marginal(muY_basic_box, shapeY)
-    PYpi_new = PYpi.clone()
 
     # Save PXpi
     PXpiJ = torch.zeros_like(alphaJ)
-    dPYpi_list = []
 
     # Prepare for minibatch iterations
     new_offsets = torch.zeros_like(muY_basic_box.offsets)
     batch_muY_basic_list = []
     info = None
     dims_batch = np.zeros((N_batches, 2), dtype=np.int64)
-
+    time_PYpi = 0.0
+    time_check_scores = 0.0
+    print("batch\ttotal\ttrans\tmargX\tmargY")
     for i,batch in enumerate(batches):
         indices = partition[batch].ravel()
+        # Count time towads 
         # Remove minus ones
+        t0 = time.perf_counter()
         indices = indices[indices >= 0]
         data_batch = muY_basic_box.data[indices]
         offsets_batch = muY_basic_box.offsets[indices]
         muY_basic_batch = BoundingBox(data_batch, offsets_batch, shapeY)
         PYpi_batch = get_current_Y_marginal(muY_basic_batch, shapeY,
                                                   batchshape=batches_shape)
+        
+        time_PYpi += time.perf_counter() - t0
         # PYpi_batches.append(batch_Y_marginal)
     
-        ###############################
-        # This region was previously unindented
-        # PYpi = PYpi_batches[0].clone()
-        # for PYpi_partial in PYpi_batches[1:]:
-        #     PYpi += PYpi_partial
-        # PYpi_original = PYpi.clone()
-        # if "plot" not in kwargs.keys(): kwargs["plot"] = False
-        # if kwargs["plot"]:
-        #     fig, axs = plt.subplots(figsize = (15,3), ncols = 5)
-        #     axs[0].imshow(PYpi.cpu().T, origin = "lower")
-        #     for i, _ in enumerate(PYpi_batches):
-        #         axs[i+1].imshow(PYpi_batches[i].cpu().T, origin = "lower")
-        #     plt.suptitle("Old PYpi")
-        #     plt.show()
-        
         #axs[0].axis("off")
 
         #for (i, batch) in enumerate(batches):
@@ -169,28 +158,33 @@ def MiniBatchIterateUnbalanced(
                 SinkhornMaxIter, SinkhornInnerIter,
                 balance = kwargs["balance"]
             )
-        ###############################3333
-        # TODO: decide whether to remove this info saving step
+        #####################################
         # Save PXpiJ before info is messed with
         PXpiJ[batch] = info_batch["PXpiCell"]
         if info is None:
             info = info_batch
-            info["solver"] = [info["solver"]]
+            # info["solver"] = [info["solver"]]
             info["bounding_box"] =[info["bounding_box"]]
+            info["Niter"] =[info["Niter"]]
         else:
             for key in info_batch.keys():
                 if key[:4] == "time":
                     info[key] += info_batch[key]
-            info["solver"].append(info_batch["solver"])
+            # info["solver"].append(info_batch["solver"])
             info["bounding_box"].append(info_batch["bounding_box"])
+            info["Niter"].append(info_batch["Niter"])
         ##############################################
         
         # Update PYpi
+
+        t0 = time.perf_counter()
         new_PYpi_batch = get_current_Y_marginal(new_muY_basic_batch, shapeY,
                                                   batchshape=batches_shape)
         dPYpi = (new_PYpi_batch - PYpi_batch).contiguous()
+        time_PYpi += time.perf_counter() - t0
 
         # Compare current with previous score
+        t0 = time.perf_counter()
         transport_score, margX_score, margY_score = current_basic_score
         old_score = transport_score.sum() + margX_score.sum() + margY_score
         new_transport_score = transport_score.clone()
@@ -202,24 +196,28 @@ def MiniBatchIterateUnbalanced(
         new_margX_score[basic_idx_batch] = batch_margX_score
         new_margY_score = lam*LogSinkhornGPU.KL(PYpi + dPYpi, muY)
         new_score = new_transport_score.sum() + new_margX_score.sum() + new_margY_score
-        print("old, new scores", old_score.round(decimals = 1).item(), new_score.round(decimals = 1).item())
-        if new_score > (1 + 0.002)*old_score:
+
+        # print("old, new scores", old_score.round(decimals = 1).item(), new_score.round(decimals = 1).item())
+        print(i,
+              new_score.round(decimals = 1).item(), 
+              new_transport_score.sum().round(decimals = 1).item(), 
+              new_margX_score.sum().round(decimals = 1).item(),
+              new_margY_score.round(decimals = 1).item(),
+              sep = "\t")
+        if new_score > (1 + safeguard_threshold*max(1,lam))*old_score:
             # Need to average with previous
             # theta = 1/len(batch)
             theta = 0.25
             new_muY_basic_batch = bounding_box_interpolation(
                 muY_basic_batch, new_muY_basic_batch, theta)
             dPYpi *= theta
+            print(f"batch {i} set to safe")
         else: 
             current_basic_score = new_transport_score, new_margX_score, new_margY_score
-            
 
-
-
-        if kwargs["update_PYpi"]:
-            PYpi += dPYpi
-
-        # dPYpi_list.append(dPYpi.cpu())
+        time_check_scores += time.perf_counter() - t0
+        # Update PYpi  
+        PYpi += dPYpi
 
         # Slide marginals to corner to get the smallest bbox later
         t0 = time.perf_counter()
@@ -235,23 +233,10 @@ def MiniBatchIterateUnbalanced(
         # Save basic cell marginals for combining them at the end
         batch_muY_basic_list.append((basic_idx_batch,muY_basic_box_batch.data))
     info["time_clustering"] = time_clustering
+    info["time_PYpi"] = time_PYpi
+    info["time_check_scores"] = time_check_scores
 
-    # if kwargs["plot"]:
-
-    #     fig, axs = plt.subplots(figsize = (15,3), ncols = 5)
-
-    #     dPYpi = (PYpi - PYpi_original).cpu()
-    #     cmax = torch.max(torch.abs(dPYpi))
-    #     clim = (-cmax, cmax)
-    #     axs[0].imshow(dPYpi.T, origin = "lower", clim = clim, cmap = "RdBu")
-    #     plt.suptitle("Change to PYpi, " + f"clim = {np.prod(PYpi.shape)*cmax:.4f}")
-    #     for i, dPY in enumerate(dPYpi_list):
-    #         axs[i+1].imshow(dPY.cpu().T, origin = "lower", clim = clim, cmap = "RdBu")
-    #     plt.show()
-    
     # Prepare combined bounding box
-    # TODO: here we have to evaluate the score of previous and new solution, 
-    # and combine them so that they produce an appropriate decrement.
     t0 = time.perf_counter()
     w, h = np.max(dims_batch, axis=0)
     muY_basic = torch.zeros(B, w, h, **torch_options)
@@ -300,14 +285,6 @@ def MiniBatchDomDecIterationUnbalanced_CUDA(
     PYpi_box = crop_measure_to_box(muYCell_box, PYpi)
     muY_nJ = PYpi_box - muYCell_box.data
 
-    # Trace positive entries
-    # Get mask where muYCell zero
-    # mask = muYCell_box.data == 0
-    # muYref_box[mask] = 0
-    # PYpi_box[mask] = 0
-
-
-
     # 3: get physical coordinates of bounding box for each batched problem
     posYCell = get_grid_cartesian_coordinates(
         muYCell_box, dys
@@ -317,8 +294,7 @@ def MiniBatchDomDecIterationUnbalanced_CUDA(
     # 4. Solve problem
     t0 = time.perf_counter()
     # print(muXCell.shape, muYCell.shape, posXCell[0].shape, posYCell[0].shape)
-    # TODO: probably here we have to pass on more information
-    resultAlpha, resultBeta, muY_basic_batch, info_solver = \
+    resultAlpha, _, muY_basic_batch, solver = \
         BatchSolveOnCellUnbalanced_CUDA(  
             muXCell, muYref_box, posXCell, posYCell, eps, lam, alphaCell, 
             muYref_box, muY_nJ,
@@ -327,7 +303,7 @@ def MiniBatchDomDecIterationUnbalanced_CUDA(
         )
 
     info["time_sinkhorn"] = time.perf_counter() - t0
-    solver = info_solver["solver"]
+    info_solver = dict(Niter = solver.Niter)
     
     # Compute cell scores before data is transformed
     s = solver.alpha.shape[-1] // 2
@@ -341,11 +317,12 @@ def MiniBatchDomDecIterationUnbalanced_CUDA(
     # NOTE: trying out crazy balancing idea
     solver.update_alpha()
     PXpiCell = solver.get_actual_X_marginal()
+    solver.update_beta()
     # print(PXpiCell.shape, muY_basic_batch.shape)
     # Normalize composite cell X and Y masses to the same mass
     PXpiCell *= (muY_basic_batch.sum((-3, -2, -1)) /PXpiCell.sum((-2, -1))).reshape(-1, 1, 1)
     info_solver["PXpiCell"] = PXpiCell
-    solver.update_beta()
+    # solver.update_beta()
     # 5. CUDA balance
     t0 = time.perf_counter()
     if balance:
@@ -395,7 +372,6 @@ def BatchSolveOnCellUnbalanced_CUDA(
     marginals.
     """
     # Retrieve BatchSize
-    # TODO: clean up
     B = muXCell.shape[0]
     dim = len(posX)
     assert dim == 2, "Not implemented for dimension != 2"
@@ -406,22 +382,6 @@ def BatchSolveOnCellUnbalanced_CUDA(
     # Define cost for solver
     C = (posX, posY)
     # Solve problem
-    
-    # Max problem error as stopping criterion
-    # solver = UnbalancedLinftySinkhorn(
-    #     muXCell, subMuY, C, eps, lam, muY_nJ, alpha_init=alphaInit, nuref=muYref,
-    #     max_error=SinkhornError, max_error_rel=SinkhornErrorRel,
-    #     max_iter=SinkhornMaxIter, inner_iter=SinkhornInnerIter
-    # )
-    # # Enforce relative error
-    # solver.max_error = SinkhornError
-
-    # solver = LogSinkhornGPU.UnbalancedPartialSinkhornCudaImageOffset(
-    #     muXCell, subMuY, C, eps, lam, muY_nJ, alpha_init=alphaInit, nuref=muYref,
-    #     max_error=SinkhornError, max_error_rel=SinkhornErrorRel,
-    #     max_iter=SinkhornMaxIter, inner_iter=SinkhornInnerIter,
-    #     newton_iter = 10
-    # )
 
     solver = DomDecSinkhornKL(
         muXCell, subMuY, C, eps, lam, muY_nJ, alpha_init=alphaInit, nuref=muYref,
@@ -429,63 +389,12 @@ def BatchSolveOnCellUnbalanced_CUDA(
         max_iter=SinkhornMaxIter, inner_iter=SinkhornInnerIter,
         newton_iter = 10
     )
+
+    msg = solver.iterate_until_max_error()
+
     # Enforce relative error
     if SinkhornErrorRel:
         solver.max_error = SinkhornError*muXCell.sum()
-
-
-    msg = solver.iterate_until_max_error()
-    # Niter = solver.Niter
-    # if Niter > 5000:
-    #     # Repeat, but saving error in every iterate. 
-    #     error_hist = torch.zeros((solver.Niter, B), dtype = muXCell.dtype, device = muXCell.device)
-    #     primal_hist = torch.zeros_like(error_hist)
-    #     dual_hist = torch.zeros_like(error_hist)
-    #     PXpi_hist = torch.zeros((solver.Niter, *solver.alpha.shape), dtype = muXCell.dtype, device = muXCell.device)
-    #     PYpi_hist = torch.zeros((solver.Niter, *solver.beta.shape), dtype = muXCell.dtype, device = muXCell.device)
-    #     # Reset solver
-    #     solver = LogSinkhornGPU.UnbalancedPartialSinkhornCudaImageOffset(
-    #         muXCell, subMuY, C, eps, lam, muY_nJ, alpha_init=alphaInit, nuref=muYref,
-    #         max_error=SinkhornError, max_error_rel=SinkhornErrorRel,
-    #         max_iter=SinkhornMaxIter, inner_iter=SinkhornInnerIter
-    #     )
-    #     for i in range(Niter):
-    #         new_alpha = solver.get_new_alpha()
-    #         # Compute current marginal
-    #         new_mu = solver.mu * torch.exp((solver.alpha - new_alpha)/solver.eps_lam)
-    #         # Update beta (we get an iteration for free)
-    #         solver.alpha = new_alpha
-    #         # Finish this sinkhorn iter
-    #         solver.update_beta()
-    #         # Return L1 error for each subproblem
-    #         error_hist[i] = torch.sum(torch.abs(solver.mu - new_mu), axis = (1,2))
-    
-    #         PXpi = solver.get_actual_X_marginal()
-    #         PYpi = solver.get_actual_Y_marginal()
-    #         PXpi_hist[i] = PXpi
-    #         PYpi_hist[i] = PYpi
-
-    #         primal_hist[i] = torch.sum(solver.alpha * PXpi, (1,2)) + torch.sum(solver.beta * PYpi, (1,2)) \
-    #             + solver.lam*KL_batched(PXpi, solver.mu) + solver.lam*KL_batched(PYpi + solver.nu_nJ, solver.nu)
-        
-    #         lam = solver.lam
-    #         dual_hist[i] = - lam * torch.sum((torch.exp(-solver.alpha/lam)-1)*solver.mu, (1,2)) \
-    #                 - lam * torch.sum((torch.exp(-solver.beta/lam)-1)*solver.nu, (1,2))\
-    #                 - torch.sum(solver.beta*solver.nu_nJ, (1,2))
-    #     with open("results/scores_temp.pickle", "wb") as f:
-    #         pickle.dump(dict(error = error_hist.cpu().numpy(), 
-    #         primal = primal_hist.cpu().numpy(), 
-    #         dual = dual_hist.cpu().numpy(), 
-    #         PXpi = PXpi_hist.cpu().numpy(), 
-    #         PYpi = PYpi_hist.cpu().numpy(),
-    #         nu_nJ = solver.nu_nJ.cpu().numpy(), 
-    #         nuref = solver.nuref.cpu().numpy(), 
-    #         muref = solver.muref.cpu().numpy()),f)
-    #         # Force an error
-    #     assert False
-
-    # # NEW: additional sinkhorn iter to even out alpha
-    # solver.update_alpha()
 
     alpha = solver.alpha
     beta = solver.beta
@@ -496,13 +405,7 @@ def BatchSolveOnCellUnbalanced_CUDA(
         muXCell, muYref, alpha, beta, posX, posY, eps
     )
 
-    # Wrap solver and possibly runtime info into info dictionary
-    info = {
-        "solver": solver,
-        "msg": msg
-    }
-
-    return alpha, beta, muY_basic, info
+    return alpha, beta, muY_basic, solver
 
 def compute_primal_score(solvers, muY_basic_box, muY):
     # Get primal_score and muX_error
@@ -523,6 +426,27 @@ def compute_primal_score(solvers, muY_basic_box, muY):
     primal_score += lam*LogSinkhornGPU.KL(PYpi, muY)
     return primal_score.item()
 
+def compute_primal_score_components(solvers, muY_basic_box, muY):
+    # Get primal_score and muX_error
+    shapeY = muY_basic_box.global_shape
+    lam = solvers[0].lam
+    transport_score = 0.0
+    margX_score = 0.0
+    for solverB in solvers:
+        # Get cost components corresponding to cost function and X marginal
+        PXpiJ = solverB.get_actual_X_marginal()
+        PYpiJ = solverB.get_actual_Y_marginal()
+        transport_score += torch.sum(solverB.alpha * PXpiJ)
+        transport_score += torch.sum(solverB.beta * PYpiJ)
+        margX_score += lam*LogSinkhornGPU.KL(PXpiJ, solverB.mu)
+        # new_alpha = solverB.get_new_alpha()
+        # muX_error += torch.sum(torch.abs(solverB.mu - current_mu))
+    # Add global marginal penalty
+    PYpi = get_current_Y_marginal(muY_basic_box, shapeY)
+    
+    margY_score = lam*LogSinkhornGPU.KL(PYpi, muY)
+    return transport_score.item(), margX_score.item(), margY_score.item()
+
 def bounding_box_interpolation(nu1, nu2, theta):
     assert nu1.B == nu2.B, "bounding boxes must have same batch dim"
     w1, h1 = nu1.box_shape
@@ -542,7 +466,6 @@ def bounding_box_interpolation(nu1, nu2, theta):
     # [1, B+1]
     # ...
     sum_indices = torch.arange(2*B, **nu1.options_int).view(2, B).permute((1,0)).contiguous()
-    # TODO: support opt strategy
     weights = torch.tensor([[1-theta, theta]], **nu1.options).expand((B, -1)).contiguous()
     nu_combined = combine_cells(nu_comb, sum_indices, weights)
     return nu_combined
