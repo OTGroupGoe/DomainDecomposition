@@ -1,6 +1,6 @@
 #!/bin/bash
 # For running in the SCC cluster
-module load rev/21.12; module load anaconda3 cuda gcc; export PYTHONPATH=""
+# module load rev/21.12; module load anaconda3 cuda gcc; export PYTHONPATH=""
 # For a bit more of memory 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
