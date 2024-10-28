@@ -4,6 +4,8 @@ This repository provides both MPI and GPU mulsticale implementations of the doma
 
 ![Benchmark of different algorithms](fig/benchmark-domdec-sinkhorn.png)
 
+The adaptation to unbalanced entropic transport [[3]](#3) is also covered.
+
 ## Requisites
 
 For the MPI implementation an MPI library is required. We tested our algorithm against `openmpi`.
@@ -15,6 +17,8 @@ pip install git+https://github.com/OTGroupGoe/LogSinkhornGPU
 ```
 
 ## Examples
+
+### Balanced transport
 
 The folder `examples` contains examples for the MPI and GPU implementation. An example using a multiscale GPU Sinkhorn is also provided for reference. The GPU scripts can be run just by invoking the python interpreter
 
@@ -35,6 +39,9 @@ All the parameters that are set in the scripts can be overriden in the command l
 python example-sinkhorn-gpu.py --setup_fn1 data/f-000-1024.pickle --setup_fn2 data/f-001-1024.pickle --sinkhorn_error 0.001
 ```
 
+### Unbalanced transport
+
+The folder `examples` contains likewise examples for unbalanced transport [[3]](#3). Besides, detailed scripts covering all the numerical experiments presented in [[3]](#3) are gathered in the folder `unbalanced-domdec-paper`.
 
 
 ## References
@@ -43,3 +50,6 @@ Mauro Bonafini and Bernhard Schmitzer. *Domain decomposition for entropy  regula
 
 <a id="2">[2]</a>
 Ismael Medina and Bernhard Schmitzer. *Flow updates for decomposition of entropic optimal transport*. arXiv:2405.09400, 2024.
+
+<a id="3">[3]</a>
+Ismael Medina, The Sang Nguyen and Bernhard Schmitzer. *Domain decomposition for entropic unbalanced optimal transport*. arXiv:2410.08859, 2024.
