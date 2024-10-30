@@ -66,7 +66,7 @@ def MiniBatchIterateUnbalanced(
     muXJ, posXJ, alphaJ,
     muY_basic_box, shapeY, partition, current_basic_score, 
     SinkhornError=1E-4, SinkhornErrorRel=True, SinkhornMaxIter=None,
-    SinkhornInnerIter=100, batchsize=np.inf, clustering=False, 
+    SinkhornInnerIter=100,
     N_clusters="smart", safeguard_threshold = 0.005, **kwargs
 ):
     """

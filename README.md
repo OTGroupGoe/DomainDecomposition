@@ -6,7 +6,7 @@ This repository provides both MPI and GPU mulsticale implementations of the doma
 
 The adaptation to unbalanced entropic transport [[3]](#3) is also covered.
 
-## Requisites
+## Requisites and use
 
 For the MPI implementation an MPI library is required. We tested our algorithm against `openmpi`.
 
@@ -15,6 +15,8 @@ For the GPU algorithms it is necessary to install the [`LogSinkhornGPU`](https:/
 ```bash
 pip install git+https://github.com/OTGroupGoe/LogSinkhornGPU
 ```
+
+The structure of the code is explained in `lib/README.md`. For running the code please consult the [Examples](#examples) section below. For reproducing the results in [[3]](#3) please consult `unbalanced-domdec-paper/README.md`.
 
 ## Examples
 

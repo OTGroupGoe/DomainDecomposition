@@ -79,10 +79,10 @@ params["sinkhorn_error"] = 2e-5
 params["sinkhorn_error_rel"] = True
 
 # Unbalanced parameters
-params["reach"] = 1.0
+params["reach"] = 1.0       # Square root of the soft-penalty parameter $\lambda$
 
 # Multiscale parameters
-params["hierarchy_top"] = 3
+params["hierarchy_top"] = 3 # First multiscale layer
 
 # Dump files
 params["aux_dump_finest"] = False 

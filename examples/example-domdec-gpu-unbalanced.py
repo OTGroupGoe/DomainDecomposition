@@ -20,7 +20,7 @@ from lib.header_params import *
 from lib.AuxConv import *
 
 ###############################################################################
-# # GPU multiscale domdec for unbalanced entropic optimal transport
+# # GPU multiscale domdec for unbalanced entropic optimal transport [1]
 # =============================================================================
 #
 # The input measures are provided in a .pickle file containing a dictionary
@@ -35,6 +35,10 @@ from lib.AuxConv import *
 # 
 # Provided multiscale implementation only support shapes that are power of 2,  
 # and equispaced grids.
+# 
+# [1] Ismael Medina, The Sang Nguyen and Bernhard Schmitzer. 
+#     *Domain decomposition for entropic unbalanced optimal transport*. 
+#     arXiv:2410.08859, 2024.
 ###############################################################################
 
 
@@ -82,23 +86,22 @@ params["sinkhorn_error"] = 2e-5
 params["sinkhorn_error_rel"] = True
 
 # DomDec parameters
-params["domdec_cellsize"] = 4
+params["domdec_cellsize"] = 4 # Domain decomposition cellsize
 cellsize = params["domdec_cellsize"]
-params["batchsize"] = np.inf
-params["clustering"] = True
-params["balance"] = True
+params["batchsize"] = np.inf # Maximum size of the batches
+params["balance"] = True # Whether performing the balancing procedure, described in [1]
 
 # Unbalanced parameters
-params["reach"] = 1.0
-params["max_time"] = 300
-params["safeguard_threshold"] = 0.005
+params["reach"] = 1.0 # Square root of the soft-penalty parameter $\lambda$
+params["max_time"] = 300 # Maximum running time, after which `sinkhorn_max_iter` is set to zero
+params["safeguard_threshold"] = 0.005 # Allowed relative increase of the primal score
 
 # Warm starting parameters
-params["nLayerSinkhornLast"] = 7
-params["sinkhorn_error_multiplier"] = 0.25
+params["nLayerSinkhornLast"] = 7 # Last multiscale layer solved with global Sinkhorn; after this domdec is used
+params["sinkhorn_error_multiplier"] = 0.25 # Objective error for global sinkhorn, relative to `sinkhorn_error`
 
 # Multiscale parameters
-params["hierarchy_top"] = 3
+params["hierarchy_top"] = 3 # First multiscale layer
 
 # Dump files
 params["aux_dump_finest"] = False 
@@ -515,7 +518,6 @@ while nLayer <= nLayerFinest:
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
                 SinkhornInnerIter=params["sinkhorn_inner_iter"],
                 batchsize=params["batchsize"],
-                clustering = params["clustering"],
                 N_clusters = N_clusters,
                 balance = params["balance"],
                 safeguard_threshold = params["safeguard_threshold"]
@@ -596,7 +598,6 @@ while nLayer <= nLayerFinest:
                 SinkhornMaxIter=params["sinkhorn_max_iter"],
                 SinkhornInnerIter=params["sinkhorn_inner_iter"],
                 batchsize=params["batchsize"],
-                clustering = params["clustering"],
                 N_clusters = N_clusters,
                 balance = params["balance"],
                 safeguard_threshold = params["safeguard_threshold"]
